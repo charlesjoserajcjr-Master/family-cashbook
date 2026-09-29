@@ -55,6 +55,7 @@ jobs:
           chmod +x gradlew
           echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/upload.jks"
           KEYSTORE_FILE="$RUNNER_TEMP/upload.jks" ./gradlew assembleRelease bundleRelease --no-daemon
+          echo "::notice title=SHA-1 for Google sign-in::$(keytool -list -v -keystore "$RUNNER_TEMP/upload.jks" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" | grep 'SHA1:' | sed 's/.*SHA1: //')"
           rm -f "$RUNNER_TEMP/upload.jks"
 
       - name: Build test APK without a key (only if no key is set up)

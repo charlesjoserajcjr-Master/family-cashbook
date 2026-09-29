@@ -32,21 +32,56 @@ GitHub builds the app for you. No Mac is needed, not even for iPhone.
 Run it by hand only: Mac minutes use the free GitHub allowance about 10x faster.
 App Store signing and upload get added once the Apple Developer account (paid yearly) is set up.
 
-## Where the data lives (this version)
+## Where the data lives
 
-Everything is stored **only on the phone**, in one file private to the app. Nothing is sent anywhere.
-Use **Accounts & setup → Save a backup** regularly (e.g. to Google Drive). Family sharing with sign-in
-comes in a later version: `www/local-store.js` is the only file that changes for that.
+Each device keeps a working copy, so the app works offline. With **Google Drive sync** on, the ledger is
+also saved in *your own* Google Drive as `Family Cashbook data.json`, and every device signed in to the same
+Google account (phone, tablet, laptop) uses the same ledger. The app can only see files it created itself
+(Google's `drive.file` permission). Nothing is stored anywhere else. Edits merge item by item: the latest
+change to each item wins.
+
+## Turn on Google Drive sync (once, about 30 minutes)
+
+**A. Put the web app online (for laptop and tablet browsers)**
+1. Repository **Settings → General → Danger Zone → Change visibility → Public**.
+   Only the app's code becomes public; your data is never in this repository.
+2. **Settings → Pages → Build and deployment → Source: GitHub Actions.**
+3. **Actions → Publish web app → Run workflow.** The app appears at
+   `https://charlesjoserajcjr-master.github.io/family-cashbook/`
+
+**B. Create the Google sign-in (Google Cloud Console, free)**
+1. Go to <https://console.cloud.google.com>, create a project named **Family Cashbook**.
+2. **APIs & Services → Library → Google Drive API → Enable.**
+3. **Google Auth Platform → Branding**: app name *Family Cashbook*, your email as support and developer contact.
+   **Audience**: *External*; while testing, add your own Gmail address under **Test users**.
+   **Data access → Add or remove scopes**: add `.../auth/drive.file`.
+4. **Clients → Create client → Web application.** Name *Family Cashbook web*.
+   Under **Authorized JavaScript origins** add `https://charlesjoserajcjr-master.github.io`. Create, and copy the
+   **Client ID** (ends in `.apps.googleusercontent.com`).
+5. Put that Client ID in `www/config.js` as `googleWebClientId` (or send it to Claude to do it).
+
+**C. Allow the Android app to sign in** (needs the upload key from "Before Google Play" above)
+1. Run **Build Android app**. On the finished run's summary page, copy the **SHA-1 for Google sign-in**.
+2. Google Cloud **Clients → Create client → Android**: package name `com.familycashbook.app`, paste the SHA-1.
+3. After you upload to Google Play, also add the **App signing key SHA-1** from Play Console
+   (*Test and release → App integrity*) as a second Android client, or Play Store installs cannot sign in.
+
+In the app: **Accounts & setup → Google Drive sync → Connect Google Drive**. On a new device, choose
+**Load my ledger from Google Drive**.
+
+While the Google project is in *Testing*, only the test users you listed can sign in, which is right for
+personal use. Before a public Play Store / App Store release, set the audience to *In production*.
 
 ## What is in here
 
 | Path | What it is |
 | --- | --- |
 | `www/index.html` | The app: screens, forecast calculations, charts |
-| `www/local-store.js` | On-phone storage and backup/restore (replaced by cloud sync later) |
+| `www/local-store.js` | On-device storage, Google Drive sync and backup/restore |
+| `www/config.js` | Google sign-in client IDs (public, no secrets) |
 | `assets/` | App icon and splash screen (placeholders, replace with final artwork) |
 | `capacitor.config.json` | App name and ID `com.familycashbook.app`. **Never change the ID after publishing** |
 | `scripts/` | Build helpers: bundle fonts, set version and signing |
-| `.github/workflows/` | Android build, upload-key creator, iPhone check build |
+| `.github/workflows/` | Android build, upload-key creator, iPhone check build, web app publishing |
 
 Never put real financial data or backup files in this repository.

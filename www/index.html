@@ -11,6 +11,7 @@ body{margin:0;font:14px system-ui,-apple-system,"Segoe UI",sans-serif}
 img{max-width:100%}
 [hidden]{display:none!important}
 </style>
+<script src="config.js"></script>
 <script src="local-store.js"></script>
 <title>Family Cashbook</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -45,6 +46,13 @@ header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;backgroun
 .brand .sub{color:var(--muted);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .who{display:flex;align-items:center;gap:8px;color:var(--ink2);font-size:12.5px;flex:none;max-width:40%;overflow:hidden;white-space:nowrap}
 .brand h1{white-space:nowrap}
+.syncchip{appearance:none;border:1px solid var(--line);background:var(--surface);color:var(--ink2);font:500 12px var(--body);padding:4px 10px;border-radius:999px;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+.syncchip::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--muted)}
+.syncchip[data-s="synced"]::before{background:var(--good)}
+.syncchip[data-s="syncing"]::before{background:var(--accent)}
+.syncchip[data-s="error"]::before,.syncchip[data-s="needs-tap"]::before{background:var(--bad)}
+.syncchip[data-s="offline"]::before{background:var(--warn)}
+@media (max-width:560px){.who{display:none}}
 @media (max-width:560px){.brand{flex-direction:column;align-items:flex-start;gap:0}.brand h1{font-size:20px}.brand .sub{max-width:100%}}
 .who img{width:26px;height:26px;border-radius:50%}
 nav.tabs{display:flex;gap:4px;overflow-x:auto;max-width:1360px;margin:0 auto;padding-inline:12px;scrollbar-width:none}
@@ -210,7 +218,7 @@ label.f{display:grid;gap:4px;font-size:12.5px;color:var(--ink2)}
 <header class="top">
   <div class="top-row">
     <div class="brand"><h1>Family Cashbook</h1><span class="sub" id="sub">Loading family accounts…</span></div>
-    <div class="who" id="who"></div>
+    <div class="row" style="flex-wrap:nowrap;gap:10px;min-width:0"><button class="syncchip" id="sync" data-tab="setup" hidden></button><div class="who" id="who"></div></div>
   </div>
   <nav class="tabs" role="tablist" id="tabs">
     <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
@@ -336,7 +344,18 @@ function schedule() {
 }
 document.addEventListener('focusout', () => { if (pending) { pending = false; setTimeout(schedule, 30); } });
 
+function syncLabel(D) {
+  const t = D.lastSync ? new Date(D.lastSync).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+  return ({ off: 'Only on this device', idle: 'Drive', syncing: 'Syncing…', synced: 'Synced ' + t, offline: 'Offline · will sync', error: 'Sync problem', 'needs-tap': 'Reconnect Drive' })[D.status] || 'Drive';
+}
+function updateSync() {
+  const D = window.__cashbookLocal?.drive, el = $('#sync'); if (!el) return;
+  if (!D || !D.configured()) { el.hidden = true; return; }
+  el.hidden = false; el.dataset.s = D.status; el.textContent = syncLabel(D);
+  el.title = D.error || (D.connected ? 'Saved in your Google Drive' : 'Connect Google Drive in Accounts & setup');
+}
 function render() {
+  updateSync();
   C = compute();
   if (!selMonth || !C.ms.includes(selMonth)) selMonth = C.cur;
   const st = S.settings;
@@ -345,7 +364,13 @@ function render() {
   $('#fab').hidden = !db || !canWrite || !Object.keys(S.categories).length;
   const v = $('#view');
   if (!db) { v.innerHTML = `<div class="panel empty" style="margin-top:24px"><b>The shared ledger isn't reachable here</b>Open Family Cashbook from Claude while signed in to see and update the family's accounts.</div>`; return; }
-  if (!st && S.ready.has('settings')) { v.innerHTML = `<div class="panel empty" style="margin-top:24px"><b>Start your family ledger</b>Add your bank accounts, then plan monthly income, EMIs and expenses. Family members you share this with can log what actually happens.<div style="margin-top:14px">${canWrite ? '<button class="btn primary" data-act="startledger">Start with the next 24 months</button>' : '<span class="dim">Ask the family head to set it up.</span>'}</div></div>`; return; }
+  if (!st && S.ready.has('settings')) {
+    const D = window.__cashbookLocal?.drive, drive = D && D.configured();
+    v.innerHTML = `<div class="panel empty" style="margin-top:24px"><b>${drive ? 'Welcome to Family Cashbook' : 'Start your family ledger'}</b>${drive ? 'Already using Family Cashbook on another device? Load your ledger from Google Drive. New here? Start a fresh ledger, then connect Drive in Accounts &amp; setup.' : 'Add your bank accounts, then plan monthly income, EMIs and expenses. Family members you share this with can log what actually happens.'}
+      <div class="row" style="margin-top:14px;justify-content:center">${drive ? `<button class="btn primary" data-act="drive-connect">${D.status === 'syncing' ? 'Loading…' : 'Load my ledger from Google Drive'}</button>` : ''}${canWrite ? `<button class="btn ${drive ? '' : 'primary'}" data-act="startledger">Start a new ledger</button>` : '<span class="dim">Ask the family head to set it up.</span>'}</div>
+      ${drive && D.error ? `<p class="hint" style="margin:10px auto 0;color:var(--bad)">${esc(D.error)}</p>` : ''}</div>`;
+    return;
+  }
   if (!st) return;
   ({ overview, month, plan, loans, business, transfers, setup })[tab]();
 }
@@ -799,8 +824,14 @@ function setup() {
     <label class="f">Plan starts<input type="month" id="s-start" value="${st.start}" ${canWrite ? '' : 'readonly'}></label>
     <label class="f">Plan ends<input type="month" id="s-end" value="${st.end}" ${canWrite ? '' : 'readonly'}></label>
   </div><p class="hint" style="margin:10px 0 0">Extending the end adds empty months. Use Edit on a Plan row to fill a recurring amount into the new months.</p></div></div>
+  ${window.__cashbookLocal?.drive?.configured() ? (() => { const D = window.__cashbookLocal.drive; return `<div class="section"><h2>Google Drive sync</h2>
+  <div class="panel pad">${D.connected
+    ? `<p style="margin:0 0 6px"><span class="pill ok">Connected</span> ${D.email ? 'as <b>' + esc(D.email) + '</b>' : ''}</p><p class="hint" style="margin:0 0 10px">Your ledger is saved in your Google Drive as “Family Cashbook data.json”. Sign in with the same Google account on your phone, tablet or laptop to use the same ledger. Changes sync automatically when you're online. ${D.lastSync ? 'Last synced ' + new Date(D.lastSync).toLocaleString() + '.' : ''}</p>
+       <div class="row"><button class="btn primary" data-act="drive-sync">${D.status === 'syncing' ? 'Syncing…' : 'Sync now'}</button><button class="btn ghost danger" data-act="drive-off">Disconnect this device</button></div>`
+    : `<p class="hint" style="margin:0 0 10px">Save your ledger to your own Google Drive and use it on your phone, tablet and laptop. The app can only see the one file it creates; nothing else in your Drive.</p><button class="btn primary" data-act="drive-connect">${D.status === 'syncing' ? 'Connecting…' : 'Connect Google Drive'}</button>`}
+    ${D.error ? `<p class="hint" style="margin:10px 0 0;color:var(--bad)">${esc(D.error)}</p>` : ''}</div></div>`; })() : ''}
   ${window.__cashbookLocal ? `<div class="section"><h2>Backup</h2>
-  <div class="panel pad"><p class="hint" style="margin:0 0 10px">Your ledger is stored only on this phone. Save a backup regularly, for example to Google Drive or email, so you can restore it on a new phone.</p>
+  <div class="panel pad"><p class="hint" style="margin:0 0 10px">${window.__cashbookLocal?.drive?.connected ? 'Google Drive keeps your ledger safe. A backup file is an extra copy you can keep anywhere.' : 'Without Drive sync your ledger is stored only on this device. Save a backup regularly so you can restore it on a new device.'}</p>
   <div class="row"><button class="btn primary" data-act="backup">Save a backup</button><label class="btn" for="restore-file">Restore from a backup</label><input type="file" id="restore-file" accept=".json,application/json" hidden></div></div></div>`
   : `<div class="section"><h2>Sharing with the family</h2>
   <div class="panel pad hint" style="max-width:none">Share this page from its menu. Give family members <b>Editor</b> access so they can log salaries, bills and EMIs as they happen; people with view access can see everything but not change it. Every entry records who added it.</div></div>`}`;
@@ -923,6 +954,15 @@ document.addEventListener('click', async ev => {
   }
   if (a === 'delentry') { if (!confirmTwice(t, 'e' + t.dataset.id)) return; return write(() => db.doc('entries/' + t.dataset.id).delete(), 'Entry deleted'); }
   if (a === 'editcat') return catModal(t.dataset.cat);
+  if (a === 'drive-connect' || a === 'drive-sync') {
+    const D = window.__cashbookLocal?.drive; if (!D) return;
+    try { await D.connect(); toast(a === 'drive-connect' ? 'Google Drive connected. Your ledger is in sync.' : 'Synced with Google Drive'); } catch (e) { toast(e?.message || 'Could not reach Google Drive.'); }
+    return render();
+  }
+  if (a === 'drive-off') {
+    if (!confirmTwice(t, 'driveoff')) return;
+    await window.__cashbookLocal.drive.disconnect(); toast('This device is disconnected. Your ledger stays here and in Drive.'); return render();
+  }
   if (a === 'backup') { try { await window.__cashbookLocal.exportData(); } catch (e) { if (!/cancel/i.test(e?.message || '')) toast('Could not save the backup: ' + (e?.message || e)); } return; }
   if (a === 'newcat') return catModal(null, t.dataset.biz);
   if (a === 'newbiz') return bizModal(null);
@@ -1093,6 +1133,7 @@ window.addEventListener('resize', () => { if (tab === 'overview' && C) drawChart
       const who = $('#who'); who.textContent = ''; const img = document.createElement('img'); img.src = me.avatarUrl; img.alt = ''; who.append(img, document.createTextNode(me.name || 'You'));
     } catch (e) {}
   }
+  window.__cashbookLocal?.drive?.onChange(() => { updateSync(); if ((tab === 'setup' || !S.settings) && !$('#modal').innerHTML) schedule(); });
   if (!db) { render(); return; }
   const onErr = e => { if (e?.code !== 'revoked') toast('Lost live updates. Reload the page to reconnect.'); };
   db.doc('settings/main').onSnapshot(s => { S.settings = s.exists ? s.data() : null; S.ready.add('settings'); schedule(); }, onErr);

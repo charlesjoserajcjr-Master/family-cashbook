@@ -1,0 +1,40 @@
+name: Publish web app (laptop and tablet)
+
+# Publishes the app as a website on GitHub Pages so it can be used in any browser.
+# The website holds only the app; each person's data stays in their own Google Drive.
+on:
+  push:
+    branches: [main]
+    paths: ["www/**", "scripts/prepare-web.mjs", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install
+        run: npm install --no-audit --no-fund
+      - name: Bundle fonts into the app
+        run: npm run prepare-web
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: www
+      - id: deployment
+        uses: actions/deploy-pages@v4
