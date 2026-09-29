@@ -1,0 +1,34 @@
+name: Create upload key (run once)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  key:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Create the key
+        env:
+          PW: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          if [ ${#PW} -lt 8 ]; then
+            echo "::error::Add the repository secret KEYSTORE_PASSWORD first (at least 8 characters), then run this again."
+            exit 1
+          fi
+          keytool -genkeypair -v -storetype PKCS12 -keystore familycashbook-upload.jks -alias familycashbook \
+            -keyalg RSA -keysize 2048 -validity 10000 -storepass "$PW" -keypass "$PW" \
+            -dname "CN=Family Cashbook, O=Family Cashbook, C=IN"
+          base64 -w0 familycashbook-upload.jks > familycashbook-upload-key-base64.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: upload-key-DOWNLOAD-AND-KEEP-SAFE
+          path: |
+            familycashbook-upload.jks
+            familycashbook-upload-key-base64.txt
+          retention-days: 1

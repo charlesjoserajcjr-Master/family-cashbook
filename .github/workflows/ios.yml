@@ -1,0 +1,42 @@
+name: Build iPhone app (check)
+
+# Runs on a rented Mac at GitHub, so no Mac is needed. Started by hand only, because
+# Mac minutes use up the free GitHub allowance about 10x faster than Linux minutes.
+# For now it checks that the iPhone app compiles. App Store signing and upload are added
+# once the Apple Developer account exists (see README).
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install
+        run: npm install --no-audit --no-fund
+
+      - name: Bundle fonts into the app
+        run: npm run prepare-web
+
+      - name: Create the iPhone project
+        run: npx cap add ios
+
+      - name: App icon and splash screen
+        run: npx capacitor-assets generate --ios
+        continue-on-error: true
+
+      - name: Copy the app into the iPhone project
+        run: npx cap sync ios
+
+      - name: Compile for the iPhone simulator (no signing)
+        shell: bash
+        run: |
+          cd ios/App
+          if [ -d App.xcworkspace ]; then TARGET="-workspace App.xcworkspace"; else TARGET="-project App.xcodeproj"; fi
+          xcodebuild $TARGET -scheme App -configuration Debug -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build | tail -40

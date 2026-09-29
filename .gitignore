@@ -1,0 +1,8 @@
+node_modules/
+android/
+ios/
+www/vendor/
+out/
+*.jks
+*-base64.txt
+.DS_Store

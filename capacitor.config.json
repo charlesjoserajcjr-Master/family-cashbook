@@ -1,0 +1,13 @@
+{
+  "appId": "com.familycashbook.app",
+  "appName": "Family Cashbook",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#3340A0"
+  },
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#3340A0"
+  }
+}
