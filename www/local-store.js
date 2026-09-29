@@ -282,6 +282,12 @@
     };
   })();
 
-  window.__cashbookLocal = { exportData, importData, drive: Drive, pwa };
+  async function exportFile(name, text, mime) {
+    const Share = Plug('Share');
+    if (FS && Share) { const w = await FS.writeFile({ path: name, directory: 'CACHE', encoding: 'utf8', data: text }); await Share.share({ title: name, url: w.uri, dialogTitle: 'Save or send' }); return; }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: mime || 'text/plain' })); a.download = name; a.click();
+  }
+
+  window.__cashbookLocal = { exportData, importData, exportFile, drive: Drive, pwa };
   window.claude = { use: async name => name === 'db' ? db : name === 'user' ? user : null };
 })();

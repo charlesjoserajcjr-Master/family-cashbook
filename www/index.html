@@ -131,6 +131,29 @@ tr.tot td{font-weight:600;border-top:1px solid var(--line)}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 
 .monthbar{display:flex;align-items:center;gap:8px}
+.txfilters{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap:10px;padding:14px;border-bottom:1px solid var(--line)}
+@media (max-width:720px){.txfilters{grid-template-columns:1fr 1fr}.txfilters input{grid-column:1/-1}}
+.iconbtn{appearance:none;border:0;background:none;color:var(--ink2);width:34px;height:34px;border-radius:8px;display:inline-grid;place-items:center;cursor:pointer}
+.iconbtn:hover{background:var(--sunk);color:var(--ink)}
+.iconbtn[data-act="tx-confirm-plan"],.iconbtn[data-act="tx-confirm-tr"]{color:var(--good)}
+.iconbtn[data-act="delentry"]:hover,.iconbtn[data-act="deltr"]:hover,.iconbtn[data-act="tx-skip-plan"]:hover{color:var(--bad)}
+.pill.plan{background:var(--accent-soft);color:var(--accent)}
+.pill.plan::before{display:none}
+.txtable td{vertical-align:middle}
+.txtable tfoot td{background:var(--sunk);white-space:normal}
+@media (max-width:640px){
+  .txtable thead{display:none}
+  .txtable tbody tr[data-status]{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;padding:12px;border-bottom:1px solid var(--line)}
+  .txtable tbody tr[data-status][hidden]{display:none}
+  .txtable tbody td{border:0;padding:0;white-space:normal}
+  .txtable tbody td:nth-child(1){grid-column:1;font-size:12px;color:var(--muted)}
+  .txtable tbody td:nth-child(2){grid-column:1}
+  .txtable tbody td:nth-child(3){grid-column:1;font-size:12.5px;color:var(--ink2)}
+  .txtable tbody td:nth-child(4){grid-column:2;grid-row:1}
+  .txtable tbody td:nth-child(5){grid-column:2;grid-row:2 / span 2;align-self:center}
+  .txtable tbody td:nth-child(6){grid-column:1 / -1}
+  .txtable tfoot tr{display:block;padding:10px 12px}.txtable tfoot td{display:block;border:0;padding:0;text-align:left}
+}
 .loanwrap{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}
 @media (min-width:1260px){.loanwrap{grid-template-columns:minmax(0,1.85fr) minmax(320px,1fr)}.loandetail{position:sticky;top:calc(env(safe-area-inset-top,0px) + 110px);max-height:calc(100vh - 130px);overflow:auto}}
 .loantable td{vertical-align:middle}
@@ -230,7 +253,7 @@ label.f{display:grid;gap:4px;font-size:12.5px;color:var(--ink2)}
     <button role="tab" data-tab="plan" aria-selected="false">Plan</button>
     <button role="tab" data-tab="loans" aria-selected="false">Loans &amp; EMIs</button>
     <button role="tab" data-tab="business" aria-selected="false">Businesses</button>
-    <button role="tab" data-tab="transfers" aria-selected="false">Transfers</button>
+    <button role="tab" data-tab="transactions" aria-selected="false">Transactions</button>
     <button role="tab" data-tab="setup" aria-selected="false">Accounts &amp; setup</button>
   </nav>
 </header>
@@ -267,7 +290,7 @@ const closedThrough = () => S.settings?.closedThrough || '';
 const locked = m => !!closedThrough() && m <= closedThrough();
 const firstOpen = () => closedThrough() ? addM(closedThrough(), 1) : (S.settings?.start || todayM);
 
-try { const t = location.hash.slice(1); if (['overview','month','plan','loans','business','transfers','setup'].includes(t)) tab = t; } catch (e) {}
+try { const t = location.hash.slice(1); if (t === 'transfers') tab = 'transactions'; else if (['overview','month','plan','loans','business','transactions','setup'].includes(t)) tab = t; } catch (e) {}
 
 // ---------- engine ----------
 const accList = () => Object.values(S.accounts).sort((a, b) => (a.order ?? 99) - (b.order ?? 99) || String(a.name).localeCompare(b.name));
@@ -365,7 +388,7 @@ function render() {
   const st = S.settings;
   $('#sub').textContent = st ? `${C.accs.length} accounts · plan ${mlabel(st.start)} – ${mlabel(st.end)}` : (db ? 'Waiting for the ledger…' : 'Shared ledger unavailable in this view');
   document.querySelectorAll('#tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === tab));
-  $('#fab').hidden = !db || !canWrite || !Object.keys(S.categories).length;
+  $('#fab').hidden = !db || !canWrite || !Object.keys(S.categories).length || tab === 'transactions';
   const v = $('#view');
   if (!db) { v.innerHTML = `<div class="panel empty" style="margin-top:24px"><b>The shared ledger isn't reachable here</b>Open Family Cashbook from Claude while signed in to see and update the family's accounts.</div>`; return; }
   if (!st && S.ready.has('settings')) {
@@ -376,7 +399,9 @@ function render() {
     return;
   }
   if (!st) return;
-  ({ overview, month, plan, loans, business, transfers, setup })[tab]();
+  if (tab === 'transfers') tab = 'transactions';
+  C.minWarn = watchMinimums();
+  ({ overview, month, plan, loans, business, transactions, setup })[tab]();
 }
 
 function status(end, min) { return end < min ? `<span class="pill low">Below min</span>` : `<span class="pill ok">OK</span>`; }
@@ -424,10 +449,8 @@ function overview() {
         return f.counted < n
           ? `<div class="alert" style="background:var(--warn-soft)"><span class="ic" style="background:var(--warn)">?</span><div>${f.counted ? `${n - f.counted} of ${n} accounts` : 'No accounts'} have a bank balance for the end of ${mlabel(lm)} yet. Entering them catches spending the app missed.<div style="margin-top:6px"><button class="btn small" data-act="gomonth" data-m="${lm}">Enter ${MN[+lm.slice(5) - 1]} balances</button></div></div></div>`
           : `<div class="alert ${f.diff < 0 ? '' : 'okay'}"><span class="ic">${f.diff < 0 ? '!' : '✓'}</span><div>${f.diff < 0 ? `${inr(-f.diff)} of spending in ${mlabel(lm)} wasn't recorded in the app.` : f.diff > 0 ? `Accounts ended ${mlabel(lm)} ${inr(f.diff)} higher than expected.` : `Every account matched the bank at the end of ${mlabel(lm)}.`} <button class="btn small ghost" data-act="gomonth" data-m="${lm}">See details</button></div></div>`; })()}
-      <div class="section-head" style="margin-top:10px"><h2>Minimum-balance alerts</h2></div>
-      <div class="alerts">${alerts.length ? alerts.map(({ a, ms }) => { const worst = ms.reduce((w, m) => C.rows[a.id][m].end < C.rows[a.id][w].end ? m : w, ms[0]); const gap = (+a.min || 0) - C.rows[a.id][worst].end; return `
-        <div class="alert"><span class="ic">!</span><div><b>${esc(a.name)}</b> dips below its ${inr(+a.min || 0)} minimum in ${ms.length} month${ms.length > 1 ? 's' : ''}, first in ${mlabel(ms[0])}.<br><span class="dim">Worst: ${mlabel(worst)}, short by ${inr(gap)}. Plan a transfer into this account.</span></div></div>`; }).join('')
-        : `<div class="alert okay"><span class="ic">✓</span><div>Every account stays above its minimum for the rest of the plan.</div></div>`}</div>
+      <div class="section-head" style="margin-top:10px"><h2>Minimum balances</h2></div>
+      <div class="alerts">${minBalanceHtml(C.minWarn || [])}</div>
       ${bizList().length ? `<div class="section-head" style="margin-top:10px"><h2>Businesses</h2><button class="btn small ghost" data-tab="business">Open ›</button></div>
       <div class="panel scroll"><table><thead><tr><th>Business</th><th class="n">Net, ${mshort(cur)}</th><th class="n">Net, rest of plan</th></tr></thead><tbody>
       ${bizList().map(b => { const p = bizPerf(b.id); const now = p.per.find(x => x.m === cur)?.n ?? 0; const rest = p.per.filter(x => x.m >= cur).reduce((s, x) => s + x.n, 0); return `<tr><td>${esc(b.name)}</td><td class="n ${now < 0 ? 'neg' : 'pos'}">${inr(now)}</td><td class="n ${rest < 0 ? 'neg' : 'pos'}">${inr(rest)}</td></tr>`; }).join('')}
@@ -812,12 +835,158 @@ function trModal(m, id, mode) {
 }
 async function saveTransfers(m, items, msg) { return write(() => db.doc('transfers/' + m).set({ month: m, items }), msg); }
 
+// ---------- account types and minimum-balance guard ----------
+const accKind = a => a?.kind || (/\bNRE\b/i.test(a?.name || '') ? 'NRE' : /\bNRO\b/i.test(a?.name || '') ? 'NRO' : 'Savings');
+// Indian NRE accounts can only be funded from abroad or from another NRE account.
+const canTransfer = (from, to) => from.id !== to.id && (accKind(to) !== 'NRE' || accKind(from) === 'NRE');
+function minBalancePlan() {
+  const ms = C.ms.filter(m => m >= C.cur && !locked(m));
+  if (!ms.length) return [];
+  const used = {}; // already suggested out of each account
+  // Money an account can give from month m on without dropping below its own minimum afterwards.
+  const spareFrom = (s, m) => Math.max(0, Math.floor(Math.min(...ms.filter(x => x >= m).map(x => C.rows[s.id][x].end - (+s.min || 0))) / 1000) * 1000 - (used[s.id] || 0));
+  const out = [];
+  for (const a of C.accs) {
+    const min = +a.min || 0, bad = ms.filter(m => C.rows[a.id][m].end < min);
+    if (!bad.length) continue;
+    const first = bad[0], after = ms.filter(m => m >= first);
+    const worst = Math.max(...after.map(m => min - C.rows[a.id][m].end));
+    const need = Math.ceil(worst / 1000) * 1000;
+    const srcs = C.accs.filter(s => canTransfer(s, a)).map(s => ({ s, sp: spareFrom(s, first) })).filter(x => x.sp > 0).sort((x, y) => y.sp - x.sp);
+    let left = need; const moves = [];
+    for (const { s, sp } of srcs) { if (left <= 0) break; const amt = Math.min(left, sp); used[s.id] = (used[s.id] || 0) + amt; left -= amt; moves.push({ from: s, to: a, amount: amt, month: first }); }
+    out.push({ acc: a, first, months: bad.length, worst, need, moves, short: left });
+  }
+  return out;
+}
+function minBalanceHtml(list, compact) {
+  if (!list.length) return `<div class="alert okay"><span class="ic">✓</span><div>Every account stays above its minimum balance for the rest of the plan.</div></div>`;
+  return list.map(x => `<div class="alert" style="background:var(--warn-soft)"><span class="ic" style="background:var(--warn)">!</span><div>
+    <b>${esc(x.acc.name)}</b> falls below its ${inr(+x.acc.min || 0)} minimum in <b>${mlabel(x.first)}</b>${x.months > 1 ? ` and ${x.months - 1} more month${x.months > 2 ? 's' : ''}` : ''}, short by up to ${inr(x.worst)}.
+    ${x.moves.length ? `<div style="margin-top:6px">Suggested: ${x.moves.map(mv => `move <b>${inr(mv.amount)}</b> from <b>${esc(mv.from.name)}</b> in ${mlabel(mv.month)}${canWrite ? ` <button class="btn small" data-act="plan-suggest" data-from="${mv.from.id}" data-to="${mv.to.id}" data-amt="${mv.amount}" data-m="${mv.month}">Plan this transfer</button>` : ''}`).join('; ')}.</div>` : ''}
+    ${x.short > 0 ? `<div class="dim" style="margin-top:4px;font-size:12.5px">${x.moves.length ? `That still leaves ${inr(x.short)} uncovered. ` : ''}${accKind(x.acc) === 'NRE' ? 'An NRE account can only be topped up from another NRE account or money sent from abroad, and no NRE account has enough to spare.' : 'No other account has enough to spare without going below its own minimum.'}${compact ? '' : ' Consider reducing planned spending from this account or moving an expense to another account.'}</div>` : ''}
+  </div></div>`).join('');
+}
+let prevBelowSig = null;
+function watchMinimums() {
+  const list = minBalancePlan();
+  const sig = new Set(list.map(x => x.acc.id + ':' + x.first));
+  if (prevBelowSig) { const fresh = list.filter(x => !prevBelowSig.has(x.acc.id + ':' + x.first)); if (fresh.length) toast(`Heads up: ${fresh[0].acc.name} goes below its minimum in ${mlabel(fresh[0].first)}. See the suggested transfer on Overview or Transactions.`); }
+  prevBelowSig = sig;
+  return list;
+}
+
+// ---------- Transactions ----------
+let txQ = '', txStatus = '', txAcc = '';
+function txRows(m) {
+  const rows = [], lk = locked(m), trDate = x => x || m + '-01';
+  for (const c of catList()) {
+    const sign = c.type === 'income' ? 1 : -1, sec = sectionOf(c).label;
+    const list = C.act[c.id]?.[m] || [];
+    const misc = c.id.startsWith('c-misc');
+    list.forEach(e => rows.push({ kind: 'entry', id: e.id, date: e.date || m + '-01', desc: misc && e.note ? e.note : c.name, sub: misc ? c.name : sec, note: misc ? '' : e.note, acc: e.accountId || c.account, accLabel: accName(e.accountId || c.account), status: 'Completed', amt: sign * (+e.amount || 0), by: e.by, cat: c.id }));
+    if (!list.length && !lk) { const p = planVal(c, m); if (p) rows.push({ kind: 'plan', id: c.id, date: m + '-01', desc: c.name, sub: sec + ' · plan', acc: c.account, accLabel: accName(c.account), status: 'Planned', amt: sign * p, cat: c.id }); }
+  }
+  Object.values(S.entries).filter(e => e.month === m && !S.categories[e.categoryId]).forEach(e => rows.push({ kind: 'entry', id: e.id, date: e.date, desc: 'Deleted category', sub: '', note: e.note, acc: e.accountId, accLabel: accName(e.accountId), status: 'Completed', amt: -(+e.amount || 0), by: e.by }));
+  for (const [pm, d] of Object.entries(S.transfers)) for (const t of (d.items || [])) {
+    const a = t.actual;
+    if (a && (a.date || '').slice(0, 7) === m) rows.push({ kind: 'tr', id: t.id, pm, date: a.date, desc: 'Transfer', sub: t.ref || 'Between your accounts', note: a.note, acc: a.from + ' ' + a.to, accLabel: accName(a.from) + ' → ' + accName(a.to), status: 'Completed', amt: +a.amount || 0, transfer: true });
+    else if (!a && pm === m && !lk) rows.push({ kind: 'trplan', id: t.id, pm, date: trDate(), desc: 'Transfer', sub: (t.ref || 'Between your accounts') + ' · plan', acc: t.from + ' ' + t.to, accLabel: accName(t.from) + ' → ' + accName(t.to), status: 'Planned', amt: +t.amount || 0, transfer: true });
+  }
+  return rows.sort((x, y) => String(y.date).localeCompare(String(x.date)) || (x.status === y.status ? 0 : x.status === 'Completed' ? -1 : 1) || String(x.desc).localeCompare(y.desc));
+}
+
+function transactions() {
+  const m = selMonth, lk = locked(m), w = canWrite && !lk;
+  const rows = txRows(m);
+  const D = window.__cashbookLocal?.drive;
+  const warn = minBalancePlan().filter(x => x.first <= m && C.rows[x.acc.id][m].end < (+x.acc.min || 0));
+  const icon = { ok: '<svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true"><path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>', edit: '<svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true"><path d="M13.5 3.5l3 3L7 16H4v-3z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>', del: '<svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true"><path d="M4 6h12M8 6V4h4v2M6 6l1 10h6l1-10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>' };
+  const act = r => {
+    if (!w) return '';
+    const b = (a, ic, label, extra) => `<button class="iconbtn" data-act="${a}" ${extra} title="${label}" aria-label="${label}">${ic}</button>`;
+    if (r.kind === 'plan') return b('tx-confirm-plan', icon.ok, 'Confirm as planned', `data-cat="${r.cat}"`) + b('log', icon.edit, 'Confirm with changes', `data-cat="${r.cat}"`) + b('tx-skip-plan', icon.del, 'Remove from this month', `data-cat="${r.cat}" data-m="${m}"`);
+    if (r.kind === 'entry') return b('tx-edit-entry', icon.edit, 'Edit', `data-id="${r.id}"`) + b('delentry', icon.del, 'Delete', `data-id="${r.id}"`);
+    if (r.kind === 'trplan') return b('tx-confirm-tr', icon.ok, 'Confirm as planned', `data-m="${r.pm}" data-id="${esc(r.id)}"`) + b('trlog', icon.edit, 'Confirm with changes', `data-m="${r.pm}" data-id="${esc(r.id)}"`) + b('deltr', icon.del, 'Delete', `data-m="${r.pm}" data-id="${esc(r.id)}"`);
+    if (r.kind === 'tr') return locked(r.pm) ? '' : b('trlog', icon.edit, 'Edit', `data-m="${r.pm}" data-id="${esc(r.id)}"`) + b('deltr', icon.del, 'Delete', `data-m="${r.pm}" data-id="${esc(r.id)}"`);
+    return '';
+  };
+  $('#view').innerHTML = `
+  <div class="section"><div class="section-head">
+    <div><h2 style="font-size:26px">Transactions</h2><div class="hint">Every receipt, payment and transfer for the month. Tick planned items when they happen; add anything extra with + Transaction.</div></div>
+    <div class="row">${monthBar()}${D?.connected ? `<button class="btn small" data-act="drive-sync" title="Sync with Google Drive" aria-label="Sync with Google Drive">⟳</button>` : ''}${w ? '<button class="btn primary" data-act="tx-new">+ Transaction</button>' : ''}</div>
+  </div></div>
+  ${lk ? `<div class="alert okay" style="margin-top:12px"><span class="ic">✓</span><div>${mlabel(m)} is closed. Only confirmed transactions are shown.</div></div>` : ''}
+  ${warn.length ? `<div class="alerts" style="margin-top:12px">${minBalanceHtml(warn, true)}</div>` : ''}
+  <div class="panel" style="margin-top:12px">
+    <div class="txfilters">
+      <input id="tx-q" type="search" placeholder="Search descriptions, categories, accounts or notes" value="${esc(txQ)}" aria-label="Search transactions">
+      <select id="tx-status" aria-label="Status"><option value="">All statuses</option><option value="Planned" ${txStatus === 'Planned' ? 'selected' : ''}>Planned</option><option value="Completed" ${txStatus === 'Completed' ? 'selected' : ''}>Completed</option></select>
+      <select id="tx-acc" aria-label="Account"><option value="">All accounts</option>${C.accs.map(a => `<option value="${a.id}" ${txAcc === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>
+      <button class="btn" data-act="tx-export">⭳ Export</button>
+    </div>
+    <div class="scroll"><table class="txtable"><thead><tr><th>Date</th><th>Description</th><th>Account</th><th>Status</th><th class="n">Amount</th><th>Actions</th></tr></thead><tbody>
+    ${rows.map(r => `<tr data-q="${esc((r.desc + ' ' + r.sub + ' ' + r.accLabel + ' ' + (r.note || '')).toLowerCase())}" data-status="${r.status}" data-acc="${esc(r.acc)}" data-amt="${r.transfer ? 0 : r.amt}">
+      <td>${esc(r.date)}</td>
+      <td><div style="font-weight:600">${esc(r.desc)}</div><div class="dim" style="font-size:12.5px">${esc(r.sub)}${r.note ? ' · ' + esc(r.note) : ''}${r.by && r.by !== 'this-phone' ? ` · <span class="person" data-uid="${esc(r.by)}"></span>` : ''}</div></td>
+      <td>${esc(r.accLabel)}</td>
+      <td><span class="pill ${r.status === 'Completed' ? 'ok' : 'plan'}">${r.status}</span></td>
+      <td class="n" style="font-weight:600;${r.transfer ? '' : r.amt > 0 ? 'color:var(--good)' : ''}">${r.transfer ? '⇄ ' + inr(r.amt) : (r.amt > 0 ? '+' : '') + inr(r.amt)}</td>
+      <td><div class="row" style="flex-wrap:nowrap;gap:2px">${act(r)}</div></td></tr>`).join('') || `<tr><td colspan="6" class="dim">No transactions for ${mlabel(m)}.</td></tr>`}
+    </tbody><tfoot><tr class="tot"><td colspan="4" id="tx-sum-l">Shown</td><td class="n" id="tx-sum" colspan="2"></td></tr></tfoot></table></div>
+  </div>`;
+  applyTxFilter();
+  fillPeople();
+}
+function applyTxFilter() {
+  const q = txQ.trim().toLowerCase();
+  let inn = 0, out = 0, n = 0;
+  document.querySelectorAll('.txtable tbody tr[data-status]').forEach(tr => {
+    const show = (!q || tr.dataset.q.includes(q)) && (!txStatus || tr.dataset.status === txStatus) && (!txAcc || tr.dataset.acc.split(' ').includes(txAcc));
+    tr.hidden = !show;
+    if (show) { n++; const v = +tr.dataset.amt; if (v > 0) inn += v; else out -= v; }
+  });
+  const l = $('#tx-sum-l'), s = $('#tx-sum');
+  if (l) l.textContent = `${n} shown`;
+  if (s) s.innerHTML = `<span class="pos">In ${inr(inn)}</span> · Out ${inr(out)} · <b>Net ${inr(inn - out)}</b>`;
+}
+function exportTx() {
+  const m = selMonth, q = s => '"' + String(s ?? '').replace(/"/g, '""') + '"';
+  const vis = new Set([...document.querySelectorAll('.txtable tbody tr[data-status]')].map((tr, i) => tr.hidden ? -1 : i));
+  const rows = txRows(m).filter((r, i) => vis.has(i));
+  const csv = ['Date,Description,Category,Account,Status,Amount (INR),Note', ...rows.map(r => [r.date, r.desc, r.sub, r.accLabel, r.status, r.transfer ? r.amt : r.amt, r.note || ''].map(q).join(','))].join('\r\n');
+  const name = `family-cashbook-${m}.csv`;
+  if (window.__cashbookLocal?.exportFile) return window.__cashbookLocal.exportFile(name, csv, 'text/csv');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = name; a.click();
+}
+
+function txModal(kind) {
+  const k = kind || txModal.k || 'expense'; txModal.k = k;
+  const m = selMonth, date = locked(m) ? firstOpen() + '-01' : (m === todayM ? todayD : m + '-01');
+  if (k !== 'transfer') { entryType = k; return entryModal(null, { tx: true, date }); }
+  const opts = sel => C.accs.map(a => `<option value="${a.id}" ${a.id === sel ? 'selected' : ''}>${esc(a.name)} (${accKind(a)})</option>`).join('');
+  openModal(`<h2>New transaction</h2>
+    <div class="seg" role="group"><button data-act="txk" data-k="expense" aria-pressed="false">Money out</button><button data-act="txk" data-k="income" aria-pressed="false">Money in</button><button data-act="txk" data-k="transfer" aria-pressed="true">Transfer</button></div>
+    <div class="form">
+      <label class="f">From<select id="x-from">${opts(C.accs[0]?.id)}</select></label>
+      <label class="f">To<select id="x-to">${opts(C.accs[C.accs.length - 1]?.id)}</select></label>
+      <label class="f">Amount (₹)<input id="x-amt" inputmode="decimal" placeholder="50,000"></label>
+      <label class="f">Date<input type="date" id="x-date" value="${date}" min="${firstOpen()}-01"></label>
+      <label class="f full">Reference<input id="x-ref" placeholder="e.g. Top up for car loan EMI"></label>
+      <label class="f">Status<select id="x-status"><option value="done">Done</option><option value="planned">Planned</option></select></label>
+      <label class="f">Repeat monthly until<select id="x-until"><option value="">No repeat</option>${C.ms.filter(x => !locked(x)).map(x => `<option value="${x}">${mlabel(x)}</option>`).join('')}</select></label>
+    </div>
+    <p class="hint" style="margin:0">NRE accounts can only receive money from another NRE account.</p>
+    <div class="row" style="justify-content:flex-end"><button class="btn ghost" data-act="close">Cancel</button><button class="btn primary" data-act="tx-save-tr">Save transfer</button></div>`);
+}
+
 function setup() {
   const st = S.settings;
   $('#view').innerHTML = `
   <div class="section"><div class="section-head"><div><h2>Accounts</h2><div class="hint">Opening balance is the balance at the start of ${mlabel(st.start)}. Changes save when you leave the field.</div></div>${canWrite ? '<button class="btn small primary" data-act="addacc">+ Account</button>' : ''}</div>
-  <div class="panel scroll"><table><thead><tr><th>Name</th><th class="n">Opening balance</th><th class="n">Minimum balance</th><th>Notes</th><th></th></tr></thead><tbody>
+  <div class="panel scroll"><table><thead><tr><th>Name</th><th>Type</th><th class="n">Opening balance</th><th class="n">Minimum balance</th><th>Notes</th><th></th></tr></thead><tbody>
   ${C.accs.map(a => `<tr><td><input id="a-n-${a.id}" data-acc="${a.id}" data-f="name" value="${esc(a.name)}" ${canWrite ? '' : 'readonly'}></td>
+    <td><select id="a-k-${a.id}" data-acc="${a.id}" data-f="kind" ${canWrite ? '' : 'disabled'} title="NRE accounts can only receive money from other NRE accounts">${[['Savings', 'Resident savings'], ['NRO', 'NRO'], ['NRE', 'NRE'], ['Current', 'Current'], ['Other', 'Other']].map(([v, l]) => `<option value="${v}" ${accKind(a) === v ? 'selected' : ''}>${l}</option>`).join('')}</select></td>
     <td class="n"><input id="a-o-${a.id}" data-acc="${a.id}" data-f="opening" value="${(+a.opening || 0).toLocaleString('en-IN')}" inputmode="decimal" style="text-align:right;width:130px" ${canWrite ? '' : 'readonly'}></td>
     <td class="n"><input id="a-m-${a.id}" data-acc="${a.id}" data-f="min" value="${(+a.min || 0).toLocaleString('en-IN')}" inputmode="decimal" style="text-align:right;width:120px" ${canWrite ? '' : 'readonly'}></td>
     <td><input id="a-t-${a.id}" data-acc="${a.id}" data-f="notes" value="${esc(a.notes || '')}" style="width:100%;min-width:200px" ${canWrite ? '' : 'readonly'}></td>
@@ -852,24 +1021,27 @@ function closeModal() { $('#modal').innerHTML = ''; }
 function openModal(html) { $('#modal').innerHTML = `<div class="scrim" data-act="scrim"><div class="sheet" role="dialog" aria-modal="true">${html}</div></div>`; const f = $('#modal input, #modal select'); f && f.focus(); }
 
 let entryType = 'expense';
-function entryModal(catId) {
+function entryModal(catId, o = {}) {
+  const ed = o.entryId ? S.entries[o.entryId] : null;
   const c0 = catId ? S.categories[catId] : null; if (c0) entryType = c0.type === 'income' ? 'income' : 'expense';
-  const cats = catList().filter(c => (c.type === 'income') === (entryType === 'income'));
-  const sel = c0 || cats[0];
-  let date = c0 && selMonth && selMonth !== todayM ? selMonth + '-01' : todayD;
-  if (locked(date.slice(0, 7))) date = firstOpen() + '-01';
-  const p = sel ? planVal(sel, date.slice(0, 7)) : 0;
-  openModal(`<h2>Add an entry</h2>
-    <div class="seg" role="group"><button data-act="etype" data-t="expense" aria-pressed="${entryType === 'expense'}">Money out</button><button data-act="etype" data-t="income" aria-pressed="${entryType === 'income'}">Money in</button></div>
+  entryModal.o = { tx: o.tx, date: o.date };
+  const cats = catList().filter(c => (c.type === 'income') === (entryType === 'income') && !c.id.startsWith('c-misc'));
+  const sel = c0 || (o.tx ? null : cats[0]);
+  let date = ed ? ed.date : o.date || (c0 && selMonth && selMonth !== todayM ? selMonth + '-01' : todayD);
+  if (!ed && locked(date.slice(0, 7))) date = firstOpen() + '-01';
+  const p = ed ? +ed.amount : sel ? planVal(sel, date.slice(0, 7)) : 0;
+  const isMisc = !sel || sel.id.startsWith('c-misc');
+  openModal(`<h2>${ed ? 'Edit transaction' : o.tx ? 'New transaction' : 'Add an entry'}</h2>
+    ${ed ? '' : `<div class="seg" role="group"><button data-act="${o.tx ? 'txk' : 'etype'}" data-t="expense" data-k="expense" aria-pressed="${entryType === 'expense'}">Money out</button><button data-act="${o.tx ? 'txk' : 'etype'}" data-t="income" data-k="income" aria-pressed="${entryType === 'income'}">Money in</button>${o.tx ? '<button data-act="txk" data-k="transfer" aria-pressed="false">Transfer</button>' : ''}</div>`}
     <div class="form">
-      <label class="f full">Category<select id="e-cat">${cats.map(c => `<option value="${c.id}" ${c === sel ? 'selected' : ''}>${esc(catLabel(c))}</option>`).join('')}</select></label>
+      <label class="f full">Category<select id="e-cat"><option value="__misc" ${isMisc ? 'selected' : ''}>${entryType === 'income' ? 'Other income (one-off)' : 'Miscellaneous (one-off)'}</option>${cats.map(c => `<option value="${c.id}" ${c === sel ? 'selected' : ''}>${esc(catLabel(c))}</option>`).join('')}</select></label>
       <label class="f">Amount (₹)<input id="e-amt" inputmode="decimal" value="${p ? p.toLocaleString('en-IN') : ''}" placeholder="0"></label>
-      <label class="f">Date<input type="date" id="e-date" value="${date}" min="${firstOpen()}-01"></label>
-      <label class="f full">Account<select id="e-acc">${C.accs.map(a => `<option value="${a.id}" ${sel && a.id === sel.account ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>
-      <label class="f full">Note<input id="e-note" placeholder="Optional, e.g. paid via UPI"></label>
+      <label class="f">Date<input type="date" id="e-date" value="${esc(date)}" min="${firstOpen()}-01"></label>
+      <label class="f full">Account<select id="e-acc">${C.accs.map(a => `<option value="${a.id}" ${a.id === (ed ? ed.accountId : sel ? sel.account : C.accs[0]?.id) ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>
+      <label class="f full">Description / note<input id="e-note" value="${esc(ed?.note || '')}" placeholder="${isMisc ? 'What was it? e.g. Plumber, gift, bank charges' : 'Optional, e.g. paid via UPI'}"></label>
     </div>
-    <p class="hint" style="margin:0">This becomes the actual figure for the category in that month, replacing the plan.</p>
-    <div class="row" style="justify-content:flex-end"><button class="btn ghost" data-act="close">Cancel</button><button class="btn primary" data-act="saveentry">Save entry</button></div>`);
+    <p class="hint" style="margin:0">A confirmed amount replaces the plan for that category in that month.</p>
+    <div class="row" style="justify-content:flex-end"><button class="btn ghost" data-act="close">Cancel</button><button class="btn primary" data-act="saveentry" data-id="${ed ? esc(o.entryId) : ''}">${ed ? 'Save changes' : 'Save'}</button></div>`);
 }
 
 function catModal(id, presetBiz, presetGroup) {
@@ -952,14 +1124,21 @@ document.addEventListener('click', async ev => {
   if (a === 'log') return entryModal(t.dataset.cat);
   if (a === 'etype') { entryType = t.dataset.t; return entryModal(); }
   if (a === 'saveentry') {
-    const amt = num($('#e-amt').value), date = $('#e-date').value, cat = $('#e-cat').value;
+    const amt = num($('#e-amt').value), date = $('#e-date').value; let cat = $('#e-cat').value;
     if (!cat) return toast('Pick a category first.');
     if (!amt) return toast('Enter an amount above zero.');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return toast('Pick a date for the entry.');
     if (locked(date.slice(0, 7))) return toast(mlabel(date.slice(0, 7)) + ' is closed. Pick a date from ' + mlabel(firstOpen()) + ' on.');
-    const body = { date, month: date.slice(0, 7), categoryId: cat, accountId: $('#e-acc').value, amount: amt, note: $('#e-note').value.trim(), by: uid || '', createdAt: new Date().toISOString() };
+    const note = $('#e-note').value.trim(), editId = t.dataset.id;
+    if (cat === '__misc') {
+      const inc = entryType === 'income'; cat = inc ? 'c-misc-in' : 'c-misc-out';
+      if (!note) return toast('Add a short description for this one-off transaction.');
+      if (!S.categories[cat]) { t.disabled = true; if (!await write(() => db.doc('categories/' + cat).set({ name: inc ? 'Other income' : 'Miscellaneous', type: inc ? 'income' : 'expense', group: inc ? 'Income' : 'Other', account: $('#e-acc').value, order: 998, amounts: {} }))) { t.disabled = false; return; } }
+    }
+    const old = editId ? S.entries[editId] : null;
+    const body = { date, month: date.slice(0, 7), categoryId: cat, accountId: $('#e-acc').value, amount: amt, note, by: old?.by ?? (uid || ''), createdAt: old?.createdAt || new Date().toISOString(), ...(old ? { editedAt: new Date().toISOString() } : {}) };
     t.disabled = true;
-    if (await write(() => db.collection('entries').add(body), 'Entry saved')) closeModal(); else t.disabled = false;
+    if (await write(() => editId ? db.doc('entries/' + editId).set(body) : db.collection('entries').add(body), editId ? 'Transaction updated' : 'Saved')) closeModal(); else t.disabled = false;
     return;
   }
   if (a === 'delentry') { if (!confirmTwice(t, 'e' + t.dataset.id)) return; return write(() => db.doc('entries/' + t.dataset.id).delete(), 'Entry deleted'); }
@@ -1025,6 +1204,46 @@ document.addEventListener('click', async ev => {
     t.disabled = false; if (ok) { toast('Transfer added'); $('#t-amt').value = ''; }
     return;
   }
+  if (a === 'tx-new') { txModal.k = 'expense'; return txModal('expense'); }
+  if (a === 'txk') return txModal(t.dataset.k);
+  if (a === 'tx-export') { try { await exportTx(); } catch (e) { if (!/cancel/i.test(e?.message || '')) toast('Could not export: ' + (e?.message || e)); } return; }
+  if (a === 'tx-edit-entry') { const e = S.entries[t.dataset.id]; if (e) entryModal(e.categoryId, { entryId: t.dataset.id }); return; }
+  if (a === 'tx-confirm-plan') {
+    const c = S.categories[t.dataset.cat], m = selMonth; if (!c || locked(m)) return;
+    const body = { date: m === todayM ? todayD : m + '-01', month: m, categoryId: c.id, accountId: c.account, amount: planVal(c, m), note: '', by: uid || '', createdAt: new Date().toISOString() };
+    return write(() => db.collection('entries').add(body), c.name + ' confirmed');
+  }
+  if (a === 'tx-skip-plan') {
+    if (!confirmTwice(t, 'skip' + t.dataset.cat)) return;
+    return write(() => db.doc('categories/' + t.dataset.cat).update({ amounts: { [t.dataset.m]: 0 } }), 'Removed from ' + mlabel(t.dataset.m) + '\'s plan');
+  }
+  if (a === 'tx-confirm-tr') {
+    const m = t.dataset.m, id = t.dataset.id, tr = (S.transfers[m]?.items || []).find(x => x.id === id); if (!tr) return;
+    const items = S.transfers[m].items.map(x => x.id === id ? { ...x, actual: { from: x.from, to: x.to, amount: +x.amount || 0, date: m === todayM ? todayD : m + '-01', note: '', by: uid || '', at: new Date().toISOString() } } : x);
+    return saveTransfers(m, items, 'Transfer confirmed');
+  }
+  if (a === 'tx-save-tr') {
+    const from = $('#x-from').value, to = $('#x-to').value, amount = num($('#x-amt').value), date = $('#x-date').value, ref = $('#x-ref').value.trim(), done = $('#x-status').value === 'done', until = $('#x-until').value;
+    if (from === to) return toast('Pick two different accounts.');
+    if (!canTransfer(S.accounts[from], S.accounts[to])) return toast(S.accounts[to].name + ' is an NRE account: it can only receive money from another NRE account.');
+    if (!amount) return toast('Enter an amount above zero.');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return toast('Pick a date.');
+    const m0 = date.slice(0, 7); if (locked(m0)) return toast(mlabel(m0) + ' is closed.');
+    const months = until && until > m0 ? range(m0, until) : [m0];
+    t.disabled = true; let ok = true;
+    for (const [i, m] of months.entries()) {
+      const item = { id: newId('t'), from, to, amount, ref };
+      if (done && i === 0) item.actual = { from, to, amount, date, note: '', by: uid || '', at: new Date().toISOString() };
+      ok = await saveTransfers(m, [...(S.transfers[m]?.items || []), item]); if (!ok) break;
+    }
+    if (ok) { toast(done ? 'Transfer saved' : 'Transfer planned'); closeModal(); } else t.disabled = false;
+    return;
+  }
+  if (a === 'plan-suggest') {
+    const m = t.dataset.m, from = t.dataset.from, to = t.dataset.to, amount = +t.dataset.amt;
+    t.disabled = true;
+    return saveTransfers(m, [...(S.transfers[m]?.items || []), { id: newId('t'), from, to, amount, ref: 'Keep ' + S.accounts[to].name + ' above minimum' }], 'Transfer planned for ' + mlabel(m));
+  }
   if (a === 'trlog') return trModal(t.dataset.m, t.dataset.id, 'actual');
   if (a === 'trplan') return trModal(t.dataset.m, t.dataset.id, 'plan');
   if (a === 'savetra' || a === 'cleartra') {
@@ -1033,6 +1252,7 @@ document.addEventListener('click', async ev => {
     if (a === 'savetra') {
       const from = $('#ta-from').value, to = $('#ta-to').value, amount = num($('#ta-amt').value), date = $('#ta-date').value;
       if (from === to) return toast('Pick two different accounts.');
+      if (!canTransfer(S.accounts[from], S.accounts[to])) return toast(S.accounts[to].name + ' is an NRE account: it can only receive money from another NRE account.');
       if (!amount) return toast('Enter the amount you actually moved.');
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return toast('Pick the date of the transfer.');
       if (locked(date.slice(0, 7))) return toast(mlabel(date.slice(0, 7)) + ' is closed. Pick a date from ' + mlabel(firstOpen()) + ' on.');
@@ -1047,6 +1267,7 @@ document.addEventListener('click', async ev => {
     const m = t.dataset.m, id = t.dataset.id, nm = $('#tp-m').value;
     const from = $('#tp-from').value, to = $('#tp-to').value, amount = num($('#tp-amt').value), ref = $('#tp-ref').value.trim();
     if (from === to) return toast('Pick two different accounts.');
+    if (!canTransfer(S.accounts[from], S.accounts[to])) return toast(S.accounts[to].name + ' is an NRE account: it can only receive money from another NRE account.');
     if (!amount) return toast('Enter an amount above zero.');
     const old = (S.transfers[m]?.items || []).find(x => x.id === id); if (!old) return closeModal();
     const upd = { ...old, from, to, amount, ref };
@@ -1072,7 +1293,8 @@ document.addEventListener('click', async ev => {
     return write(() => db.doc('accounts/' + t.dataset.id).delete(), 'Account removed');
   }
 });
-$('#fab').addEventListener('click', () => entryModal(null));
+$('#fab').addEventListener('click', () => { if (tab === 'transactions') { txModal.k = 'expense'; return txModal('expense'); } entryModal(null); });
+document.addEventListener('input', ev => { if (ev.target.id === 'tx-q') { txQ = ev.target.value; applyTxFilter(); } });
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && $('#modal').innerHTML) closeModal();
   if (e.key === 'Enter' && e.target.matches?.('[data-loan]')) { selLoan = e.target.dataset.loan; showSched = false; loans._scroll = true; render(); }
@@ -1096,6 +1318,8 @@ document.addEventListener('change', async ev => {
     await write(() => db.doc('categories/' + c.id).update({ loan: patch }), f === 'outstanding' ? 'Balance saved as of today' : 'Interest rate saved');
     return;
   }
+  if (el.id === 'tx-status') { txStatus = el.value; return applyTxFilter(); }
+  if (el.id === 'tx-acc') { txAcc = el.value; return applyTxFilter(); }
   if (el.id === 'tr-from') { trFrom = el.value; el.blur(); return render(); }
   if (el.dataset.balAcc) {
     const m = el.dataset.m, acc = el.dataset.balAcc, raw = el.value.trim();
