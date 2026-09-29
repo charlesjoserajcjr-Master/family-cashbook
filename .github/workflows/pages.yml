@@ -32,6 +32,8 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Bundle fonts into the app
         run: npm run prepare-web
+      - name: Stamp the offline copy with this version
+        run: sed -i "s/__BUILD__/${GITHUB_SHA::12}/" www/sw.js
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

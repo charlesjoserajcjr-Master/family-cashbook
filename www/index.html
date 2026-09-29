@@ -11,6 +11,10 @@ body{margin:0;font:14px system-ui,-apple-system,"Segoe UI",sans-serif}
 img{max-width:100%}
 [hidden]{display:none!important}
 </style>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <script src="config.js"></script>
 <script src="local-store.js"></script>
 <title>Family Cashbook</title>
@@ -830,6 +834,12 @@ function setup() {
        <div class="row"><button class="btn primary" data-act="drive-sync">${D.status === 'syncing' ? 'Syncing…' : 'Sync now'}</button><button class="btn ghost danger" data-act="drive-off">Disconnect this device</button></div>`
     : `<p class="hint" style="margin:0 0 10px">Save your ledger to your own Google Drive and use it on your phone, tablet and laptop. The app can only see the one file it creates; nothing else in your Drive.</p><button class="btn primary" data-act="drive-connect">${D.status === 'syncing' ? 'Connecting…' : 'Connect Google Drive'}</button>`}
     ${D.error ? `<p class="hint" style="margin:10px 0 0;color:var(--bad)">${esc(D.error)}</p>` : ''}</div></div>`; })() : ''}
+  ${window.__cashbookLocal?.pwa?.web ? (() => { const P = window.__cashbookLocal.pwa; return `<div class="section"><h2>Use offline on this computer</h2>
+  <div class="panel pad"><div class="row" style="gap:8px 16px;margin-bottom:10px">
+    <span class="pill ${P.installed ? 'ok' : 'act'}">${P.installed ? 'Installed as an app' : 'Opens offline after the first visit'}</span>
+    <span class="pill ${P.persisted ? 'ok' : P.persisted === false ? 'low' : 'act'}">${P.persisted ? 'Storage protected' : P.persisted === false ? 'Storage not protected yet' : 'Checking storage…'}</span></div>
+    <p class="hint" style="margin:0 0 10px">${P.installed ? 'Family Cashbook opens from its own icon, with or without internet.' : 'Install it to open Family Cashbook from its own icon, with or without internet.'} ${P.persisted ? 'The browser will keep your ledger even when disk space runs low.' : 'Installing the app usually lets the browser protect your ledger from automatic clean-up.'} Clearing the browser's history or site data still deletes it, so keep backups.</p>
+    <div class="row">${P.canInstall ? '<button class="btn primary" data-act="pwa-install">Install Family Cashbook</button>' : P.installed ? '' : '<span class="hint" style="margin:0">To install: in Chrome, open the ⋮ menu → <b>Cast, save and share → Install page as app</b>. In Edge: ⋯ menu → <b>Apps → Install this site as an app</b>.</span>'}${P.persisted === false ? '<button class="btn" data-act="pwa-protect">Protect storage</button>' : ''}</div></div></div>`; })() : ''}
   ${window.__cashbookLocal ? `<div class="section"><h2>Backup</h2>
   <div class="panel pad"><p class="hint" style="margin:0 0 10px">${window.__cashbookLocal?.drive?.connected ? 'Google Drive keeps your ledger safe. A backup file is an extra copy you can keep anywhere.' : 'Without Drive sync your ledger is stored only on this device. Save a backup regularly so you can restore it on a new device.'}</p>
   <div class="row"><button class="btn primary" data-act="backup">Save a backup</button><label class="btn" for="restore-file">Restore from a backup</label><input type="file" id="restore-file" accept=".json,application/json" hidden></div></div></div>`
@@ -963,6 +973,8 @@ document.addEventListener('click', async ev => {
     if (!confirmTwice(t, 'driveoff')) return;
     await window.__cashbookLocal.drive.disconnect(); toast('This device is disconnected. Your ledger stays here and in Drive.'); return render();
   }
+  if (a === 'pwa-install') { const ok = await window.__cashbookLocal.pwa.install(); if (ok) toast('Installed. Open Family Cashbook from its icon, even offline.'); return render(); }
+  if (a === 'pwa-protect') { await window.__cashbookLocal.pwa.protect(); toast(window.__cashbookLocal.pwa.persisted ? 'Storage protected' : 'The browser declined for now. Installing the app usually allows it.'); return render(); }
   if (a === 'backup') { try { await window.__cashbookLocal.exportData(); } catch (e) { if (!/cancel/i.test(e?.message || '')) toast('Could not save the backup: ' + (e?.message || e)); } return; }
   if (a === 'newcat') return catModal(null, t.dataset.biz);
   if (a === 'newbiz') return bizModal(null);
@@ -1133,6 +1145,7 @@ window.addEventListener('resize', () => { if (tab === 'overview' && C) drawChart
       const who = $('#who'); who.textContent = ''; const img = document.createElement('img'); img.src = me.avatarUrl; img.alt = ''; who.append(img, document.createTextNode(me.name || 'You'));
     } catch (e) {}
   }
+  window.addEventListener('cashbook-pwa', () => { if (tab === 'setup' && !$('#modal').innerHTML) schedule(); });
   window.__cashbookLocal?.drive?.onChange(() => { updateSync(); if ((tab === 'setup' || !S.settings) && !$('#modal').innerHTML) schedule(); });
   if (!db) { render(); return; }
   const onErr = e => { if (e?.code !== 'revoked') toast('Lost live updates. Reload the page to reconnect.'); };

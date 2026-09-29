@@ -256,6 +256,32 @@
     search: async () => [],
   };
 
-  window.__cashbookLocal = { exportData, importData, drive: Drive };
+  // ---------- web only: open offline, install as an app, keep browser storage ----------
+  const WEB = !NATIVE && (location.protocol === 'https:' || location.hostname === 'localhost');
+  const pwa = (() => {
+    let prompt = null, persisted = null;
+    const ping = () => window.dispatchEvent(new Event('cashbook-pwa'));
+    if (WEB && 'serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(e => console.warn('Offline support unavailable', e));
+    window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); prompt = e; ping(); });
+    window.addEventListener('appinstalled', () => { prompt = null; ping(); });
+    async function protect() {
+      try {
+        if (!navigator.storage?.persist) { persisted = false; return ping(); }
+        persisted = await navigator.storage.persisted() || await navigator.storage.persist();
+      } catch (e) { persisted = false; }
+      ping();
+    }
+    if (WEB) protect();
+    return {
+      web: WEB,
+      get installed() { return matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; },
+      get canInstall() { return !!prompt; },
+      get persisted() { return persisted; },
+      async install() { if (!prompt) return false; prompt.prompt(); const r = await prompt.userChoice; prompt = null; ping(); if (r?.outcome === 'accepted') protect(); return r?.outcome === 'accepted'; },
+      protect,
+    };
+  })();
+
+  window.__cashbookLocal = { exportData, importData, drive: Drive, pwa };
   window.claude = { use: async name => name === 'db' ? db : name === 'user' ? user : null };
 })();
