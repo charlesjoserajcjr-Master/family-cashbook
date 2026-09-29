@@ -219,7 +219,10 @@ const todayD = new Date().toISOString().slice(0, 10);
 
 const S = { settings: null, accounts: {}, categories: {}, transfers: {}, entries: {}, businesses: {}, balances: {}, ready: new Set() };
 let db = null, user = null, uid = null, canWrite = true, tab = 'overview', selMonth = null, planFrom = null, trFrom = null;
-let pending = false, C = null;
+let pending = false, C = null, isAdmin = true;
+const closedThrough = () => S.settings?.closedThrough || '';
+const locked = m => !!closedThrough() && m <= closedThrough();
+const firstOpen = () => closedThrough() ? addM(closedThrough(), 1) : (S.settings?.start || todayM);
 
 try { const t = location.hash.slice(1); if (['overview','month','plan','loans','business','transfers','setup'].includes(t)) tab = t; } catch (e) {}
 
@@ -248,18 +251,19 @@ function compute() {
   const trByMonth = {};
   for (const [pm, d] of Object.entries(S.transfers)) for (const t of (d.items || [])) {
     const a = t.actual, em = a?.date ? a.date.slice(0, 7) : pm;
-    (trByMonth[em] ??= []).push({ from: a?.from || t.from, to: a?.to || t.to, amount: +(a ? a.amount : t.amount) || 0 });
+    if (!a && locked(pm)) continue; // closed months keep confirmed transfers only
+    (trByMonth[em] ??= []).push({ from: a?.from || t.from, to: a?.to || t.to, amount: +(a ? a.amount : t.amount) || 0, act: !!a });
   }
   accs.forEach(a => { rows[a.id] = {}; bal[a.id] = +a.opening || 0; });
   for (const m of ms) {
-    const r = {}; accs.forEach(a => r[a.id] = { begin: bal[a.id], rec: 0, pay: 0, tin: 0, tout: 0 });
+    const r = {}; let conf = 0; accs.forEach(a => r[a.id] = { begin: bal[a.id], rec: 0, pay: 0, tin: 0, tout: 0 });
     for (const c of Object.values(S.categories)) {
       const apply = (acc, amt) => { if (!r[acc]) return; if (c.type === 'income') r[acc].rec += amt; else r[acc].pay += amt; };
       const list = act[c.id]?.[m];
-      if (list && list.length) list.forEach(e => apply(e.accountId || c.account, +e.amount || 0));
-      else { const v = +(c.amounts?.[m]) || 0; if (v) apply(c.account, v); }
+      if (list && list.length) { conf += list.length; list.forEach(e => apply(e.accountId || c.account, +e.amount || 0)); }
+      else if (!locked(m)) { const v = +(c.amounts?.[m]) || 0; if (v) apply(c.account, v); }
     }
-    for (const t of (trByMonth[m] || [])) { if (r[t.from]) r[t.from].tout += t.amount; if (r[t.to]) r[t.to].tin += t.amount; }
+    for (const t of (trByMonth[m] || [])) { if (t.act) conf++; if (r[t.from]) r[t.from].tout += t.amount; if (r[t.to]) r[t.to].tin += t.amount; }
     let tot = 0, inc = 0, exp = 0, diff = 0, counted = 0; const b = [];
     const bank = S.balances[m]?.values || {};
     for (const a of accs) {
@@ -268,12 +272,15 @@ function compute() {
       if (v !== null && v !== undefined && v !== '' && isFinite(+v)) { x.actual = +v; x.diff = x.actual - x.calc; x.end = x.actual; diff += x.diff; counted++; }
       bal[a.id] = x.end; tot += x.end; inc += x.rec; exp += x.pay; if (x.end < (+a.min || 0)) b.push(a.id); rows[a.id][m] = x;
     }
-    total[m] = tot; below[m] = b; flow[m] = { inc, exp, diff, counted };
+    total[m] = tot; below[m] = b; flow[m] = { inc, exp, diff, counted, confirmed: conf };
   }
   const cur = ms.length ? (todayM < ms[0] ? ms[0] : todayM > ms[ms.length - 1] ? ms[ms.length - 1] : todayM) : todayM;
-  return { ms, accs, rows, total, below, flow, act, cur };
+  // Once the current month is closed, "now" moves to the first open month.
+  const curOpen = locked(cur) && ms.includes(firstOpen()) ? firstOpen() : cur;
+  return { ms, accs, rows, total, below, flow, act, cur: curOpen };
 }
 const planVal = (c, m) => +(c.amounts?.[m]) || 0;
+const eff = (c, m) => actualVal(c, m) ?? (locked(m) ? 0 : planVal(c, m));
 const actualVal = (c, m) => { const l = C.act[c.id]?.[m]; return l && l.length ? l.reduce((s, e) => s + (+e.amount || 0), 0) : null; };
 
 // ---------- writes ----------
@@ -328,7 +335,7 @@ function overview() {
   const nowTot = C.total[cur] ?? 0;
   const ahead = C.ms.filter(m => m >= cur);
   let low = ahead[0]; ahead.forEach(m => { if (C.total[m] < C.total[low]) low = m; });
-  const emi = catList().filter(c => c.group === 'Loans & EMIs').reduce((s, c) => s + (actualVal(c, cur) ?? planVal(c, cur)), 0);
+  const emi = catList().filter(c => c.group === 'Loans & EMIs').reduce((s, c) => s + (eff(c, cur)), 0);
   const fl = C.flow[cur] || { inc: 0, exp: 0 };
   // alerts: per account, months below min from current month on
   const alerts = C.accs.map(a => { const ms = ahead.filter(m => C.below[m].includes(a.id)); return { a, ms }; }).filter(x => x.ms.length);
@@ -353,6 +360,7 @@ function overview() {
     <div class="section" style="margin:0">
       <div class="section-head"><h2>Month-end check</h2></div>
       ${(() => { const lm = addM(cur, -1); if (!C.ms.includes(lm)) return ''; const f = C.flow[lm]; const n = C.accs.length;
+        if (locked(lm) && !f.confirmed) return `<div class="alert okay"><span class="ic">✓</span><div>${mlabel(lm)} is closed with your bank balances. Tracking runs from ${mlabel(addM(lm, 1))}: log entries and transfers as they happen, then enter bank balances at month end.</div></div>`;
         return f.counted < n
           ? `<div class="alert" style="background:var(--warn-soft)"><span class="ic" style="background:var(--warn)">?</span><div>${f.counted ? `${n - f.counted} of ${n} accounts` : 'No accounts'} have a bank balance for the end of ${mlabel(lm)} yet. Entering them catches spending the app missed.<div style="margin-top:6px"><button class="btn small" data-act="gomonth" data-m="${lm}">Enter ${MN[+lm.slice(5) - 1]} balances</button></div></div></div>`
           : `<div class="alert ${f.diff < 0 ? '' : 'okay'}"><span class="ic">${f.diff < 0 ? '!' : '✓'}</span><div>${f.diff < 0 ? `${inr(-f.diff)} of spending in ${mlabel(lm)} wasn't recorded in the app.` : f.diff > 0 ? `Accounts ended ${mlabel(lm)} ${inr(f.diff)} higher than expected.` : `Every account matched the bank at the end of ${mlabel(lm)}.`} <button class="btn small ghost" data-act="gomonth" data-m="${lm}">See details</button></div></div>`; })()}
@@ -421,11 +429,11 @@ function monthBar() {
 }
 
 function month() {
-  const m = selMonth, cats = catList();
+  const m = selMonth, cats = catList(), lk = locked(m), w = canWrite && !lk;
   const catRows = type => {
     let out = '', grp = null, tp = 0, ta = 0;
     cats.filter(c => (type === 'income') === (c.type === 'income')).forEach(c => {
-      const p = planVal(c, m), a = actualVal(c, m); if (!p && a == null) return;
+      const a = actualVal(c, m), p = lk ? 0 : planVal(c, m); if (lk ? a == null : (!p && a == null)) return;
       const sec = sectionOf(c);
       if (sec.key !== grp) { grp = sec.key; out += `<tr class="grp"><td colspan="5">${esc(sec.label)}</td></tr>`; }
       tp += p; ta += a ?? p;
@@ -433,33 +441,35 @@ function month() {
       out += `<tr><td>${esc(c.name)}<div class="dim" style="font-size:12px">${esc(accName(c.account))}</div></td><td class="n">${p ? inr(p) : '<span class="dim">—</span>'}</td>
         <td class="n">${a == null ? '<span class="dim">not logged</span>' : `<span class="pill act">${inr(a)}</span>`}</td>
         <td class="n ${d == null || !d ? 'dim' : ((type === 'income') === (d > 0) ? 'pos' : 'neg')}">${d == null ? '' : (d > 0 ? '+' : '') + (d ? inr(d) : '0')}</td>
-        <td class="n">${canWrite ? `<button class="btn small" data-act="log" data-cat="${c.id}">${a == null && p ? 'Log paid' : 'Add'}</button>` : ''}</td></tr>`;
+        <td class="n">${w ? `<button class="btn small" data-act="log" data-cat="${c.id}">${a == null && p ? 'Log paid' : 'Add'}</button>` : ''}</td></tr>`;
     });
-    return { html: out || `<tr><td colspan="5" class="dim">Nothing planned this month.</td></tr>`, tp, ta };
+    return { html: out || `<tr><td colspan="5" class="dim">${lk ? 'No confirmed entries.' : 'Nothing planned this month.'}</td></tr>`, tp, ta };
   };
   const inc = catRows('income'), exp = catRows('expense');
   const ents = Object.values(S.entries).filter(e => e.month === m).sort((a, b) => String(b.date).localeCompare(String(a.date)));
-  const trs = S.transfers[m]?.items || [];
+  const trs = (S.transfers[m]?.items || []).filter(t => !lk || t.actual);
+  const f = C.flow[m];
   $('#view').innerHTML = `
-  <div class="section"><div class="section-head">${monthBar()}<span class="hint">Plan comes from the Plan tab. Logging an actual replaces the planned figure for that category this month.</span></div></div>
+  <div class="section"><div class="section-head">${monthBar()}<span class="hint">${lk ? 'This month is closed. It shows only confirmed entries, logged transfers and bank balances. Planned figures no longer count.' : 'Plan comes from the Plan tab. Logging an actual replaces the planned figure for that category this month.'}</span></div>
+  ${lk ? `<div class="alert okay"><span class="ic">✓</span><div><b>${mlabel(m)} is closed and locked.</b> ${f.confirmed ? '' : 'No entries were logged for it, so each account simply takes its bank balance. '}${m === closedThrough() && isAdmin && canWrite ? `<div style="margin-top:6px"><button class="btn small" data-act="reopen" data-m="${m}">Reopen ${mlabel(m)}</button> <span class="dim" style="font-size:12px">to correct a mistake</span></div>` : ''}</div></div>` : ''}</div>
   <div class="section"><div class="section-head"><h2>Account balances</h2><span class="hint">At month end, type each account's real balance from your bank. The difference is spending or income the app didn't capture. Later months then start from your real balance.</span></div>
     <div class="panel scroll"><table><thead><tr><th>Account</th><th class="n">Expected</th><th class="n">Bank balance</th><th class="n">Difference</th><th>Status</th><th class="n">Opening</th><th class="n">Money in</th><th class="n">Transfers in</th><th class="n">Money out</th><th class="n">Transfers out</th></tr></thead><tbody>
     ${C.accs.map(a => { const x = C.rows[a.id][m]; const has = x.actual !== undefined; return `<tr><td>${esc(a.name)}</td><td class="n">${has ? inr(x.calc) : `<b>${inr(x.calc)}</b>`}</td>
-      <td class="n"><input class="balin" id="bal-${a.id}-${m}" data-bal-acc="${a.id}" data-m="${m}" inputmode="decimal" placeholder="Enter" value="${has ? x.actual.toLocaleString('en-IN') : ''}" ${canWrite ? '' : 'readonly'} aria-label="${esc(a.name)} bank balance ${mlabel(m)}"></td>
+      <td class="n"><input class="balin" id="bal-${a.id}-${m}" data-bal-acc="${a.id}" data-m="${m}" inputmode="decimal" placeholder="Enter" value="${has ? x.actual.toLocaleString('en-IN') : ''}" ${w ? '' : 'readonly'} aria-label="${esc(a.name)} bank balance ${mlabel(m)}"></td>
       <td class="n ${!has || !x.diff ? 'dim' : x.diff < 0 ? 'neg' : 'pos'}">${has ? (x.diff > 0 ? '+' : '') + inr(x.diff) : '—'}</td><td>${status(x.end, +a.min || 0)}</td>
       <td class="n">${inr(x.begin)}</td><td class="n">${inr(x.rec)}</td><td class="n dim">${inr(x.tin)}</td><td class="n">${inr(x.pay)}</td><td class="n dim">${inr(x.tout)}</td></tr>`; }).join('')}
     <tr class="tot"><td>All accounts</td><td class="n">${inr(C.accs.reduce((s, a) => s + C.rows[a.id][m].calc, 0))}</td><td class="n">${C.flow[m].counted ? inr(C.total[m]) : ''}</td><td class="n ${C.flow[m].diff < 0 ? 'neg' : C.flow[m].diff > 0 ? 'pos' : 'dim'}">${C.flow[m].counted ? (C.flow[m].diff > 0 ? '+' : '') + inr(C.flow[m].diff) : ''}</td><td></td><td class="n">${inr(C.accs.reduce((s, a) => s + C.rows[a.id][m].begin, 0))}</td><td class="n">${inr(C.flow[m].inc)}</td><td></td><td class="n">${inr(C.flow[m].exp)}</td><td></td></tr>
     </tbody></table></div>
-    ${C.flow[m].counted ? `<p class="hint" style="margin:0">${C.flow[m].diff < 0 ? `${inr(-C.flow[m].diff)} left your accounts in ${mlabel(m)} without being logged (miscellaneous spending, charges, or entries not yet added).` : C.flow[m].diff > 0 ? `${inr(C.flow[m].diff)} more than expected is in your accounts: income not logged, or a planned payment that didn't happen.` : 'Bank balances match the app exactly.'} Accounts without a bank balance still use the expected figure.</p>` : ''}</div>
+    ${lk && !f.confirmed ? '' : C.flow[m].counted ? `<p class="hint" style="margin:0">${!lk && f.counted === C.accs.length - 1 ? '<b>Entering the last bank balance closes and locks this month and all earlier months.</b> ' : ''}${C.flow[m].diff < 0 ? `${inr(-C.flow[m].diff)} left your accounts in ${mlabel(m)} without being logged (miscellaneous spending, charges, or entries not yet added).` : C.flow[m].diff > 0 ? `${inr(C.flow[m].diff)} more than expected is in your accounts: income not logged, or a planned payment that didn't happen.` : 'Bank balances match the app exactly.'} Accounts without a bank balance still use the expected figure.</p>` : ''}</div>
   <div class="section grid2" style="align-items:start">
     <div class="section" style="margin:0"><h2>Money out</h2>
       <div class="panel scroll"><table><thead><tr><th>Category</th><th class="n">Plan</th><th class="n">Actual</th><th class="n">Diff</th><th></th></tr></thead><tbody>${exp.html}<tr class="tot"><td>Total</td><td class="n">${inr(exp.tp)}</td><td class="n">${inr(exp.ta)}</td><td></td><td></td></tr></tbody></table></div></div>
     <div class="section" style="margin:0"><h2>Money in</h2>
       <div class="panel scroll"><table><thead><tr><th>Category</th><th class="n">Plan</th><th class="n">Actual</th><th class="n">Diff</th><th></th></tr></thead><tbody>${inc.html}<tr class="tot"><td>Total</td><td class="n">${inr(inc.tp)}</td><td class="n">${inr(inc.ta)}</td><td></td><td></td></tr></tbody></table></div>
       <h2 style="margin-top:10px">Transfers</h2>
-      <div class="panel scroll"><table class="trtable"><thead><tr><th>Transfer</th><th class="n">Plan</th><th class="n">Actual</th><th></th></tr></thead><tbody>${trs.length ? trs.map(t => trRow(m, t, false)).join('') : `<tr><td colspan="4" class="dim">No transfers planned this month.</td></tr>`}</tbody></table></div>
+      <div class="panel scroll"><table class="trtable"><thead><tr><th>Transfer</th><th class="n">Plan</th><th class="n">Actual</th><th></th></tr></thead><tbody>${trs.length ? trs.map(t => trRow(m, t, false)).join('') : `<tr><td colspan="4" class="dim">${lk ? 'No confirmed transfers.' : 'No transfers planned this month.'}</td></tr>`}</tbody></table></div>
       <h2 style="margin-top:10px">Entries logged by the family</h2>
-      <div class="panel scroll"><table><tbody>${ents.length ? ents.map(e => { const c = S.categories[e.categoryId]; return `<tr><td>${esc(c ? catLabel(c) : 'Deleted category')}<div class="dim" style="font-size:12px">${esc(e.date || '')} · ${esc(accName(e.accountId))}${e.note ? ' · ' + esc(e.note) : ''}</div><div style="font-size:12px"><span class="person" data-uid="${esc(e.by || '')}"></span></div></td><td class="n">${inr(+e.amount || 0)}${canWrite ? `<div><button class="btn small ghost danger" data-act="delentry" data-id="${e.id}">Delete</button></div>` : ''}</td></tr>`; }).join('') : `<tr><td class="dim">No actuals logged for ${mlabel(m)} yet. Use “+ Add entry” when a salary lands or a bill is paid.</td></tr>`}</tbody></table></div>
+      <div class="panel scroll"><table><tbody>${ents.length ? ents.map(e => { const c = S.categories[e.categoryId]; return `<tr><td>${esc(c ? catLabel(c) : 'Deleted category')}<div class="dim" style="font-size:12px">${esc(e.date || '')} · ${esc(accName(e.accountId))}${e.note ? ' · ' + esc(e.note) : ''}</div><div style="font-size:12px"><span class="person" data-uid="${esc(e.by || '')}"></span></div></td><td class="n">${inr(+e.amount || 0)}${w ? `<div><button class="btn small ghost danger" data-act="delentry" data-id="${e.id}">Delete</button></div>` : ''}</td></tr>`; }).join('') : `<tr><td class="dim">No actuals logged for ${mlabel(m)} yet. Use “+ Add entry” when a salary lands or a bill is paid.</td></tr>`}</tbody></table></div>
     </div>
   </div>`;
   fillPeople();
@@ -482,7 +492,7 @@ function plan() {
     const sec = sectionOf(c);
     if (sec.key !== grp) { grp = sec.key; body += `<tr class="grp"><td class="stick">${esc(sec.label)}</td>${ms.map(() => '<td></td>').join('')}</tr>`; }
     body += `<tr><td class="stick"><div class="catname"><span>${esc(c.name)}<span class="acct">${isBiz(c) ? (c.type === 'income' ? 'Money in · ' : 'Money out · ') : ''}${esc(accName(c.account))}</span></span>${canWrite ? `<button class="btn small ghost" data-act="editcat" data-cat="${c.id}" aria-label="Edit ${esc(c.name)}">Edit</button>` : ''}</div></td>
-      ${ms.map(m => { const v = planVal(c, m); tots[m][c.type === 'income' ? 'inc' : 'exp'] += v; const a = actualVal(c, m); return `<td class="${m === C.cur ? 'cur' : ''}"><input class="cell" id="p-${c.id}-${m}" data-cat="${c.id}" data-m="${m}" value="${v ? v.toLocaleString('en-IN') : ''}" inputmode="decimal" ${canWrite ? '' : 'readonly'} title="${a != null ? 'Actual logged: ' + inr(a) : ''}" aria-label="${esc(c.name)} ${mlabel(m)}"></td>`; }).join('')}</tr>`;
+      ${ms.map(m => { const v = planVal(c, m); tots[m][c.type === 'income' ? 'inc' : 'exp'] += v; const a = actualVal(c, m); return `<td class="${m === C.cur ? 'cur' : ''}"><input class="cell" id="p-${c.id}-${m}" data-cat="${c.id}" data-m="${m}" value="${v ? v.toLocaleString('en-IN') : ''}" inputmode="decimal" ${canWrite && !locked(m) ? '' : 'readonly'} title="${a != null ? 'Actual logged: ' + inr(a) : ''}" aria-label="${esc(c.name)} ${mlabel(m)}"></td>`; }).join('')}</tr>`;
   });
   const i = all.indexOf(planFrom);
   $('#view').innerHTML = `
@@ -490,7 +500,7 @@ function plan() {
     <div><h2>Monthly plan</h2><div class="hint">Type a figure and press Tab to save. Use Edit on a row to rename it, move it to another account, or fill a fixed amount across many months at once.</div></div>
     <div class="row"><button class="btn small" data-act="pprev" ${i <= 0 ? 'disabled' : ''}>‹ Earlier</button><span class="dim">${mshort(ms[0])} – ${mshort(ms[ms.length - 1])}</span><button class="btn small" data-act="pnext" ${i + 12 >= all.length ? 'disabled' : ''}>Later ›</button>${canWrite ? `<button class="btn small primary" data-act="newcat">+ Category</button>` : ''}</div>
   </div>
-  <div class="panel plan"><table><thead><tr><th class="stick">Category</th>${ms.map(m => `<th class="n ${m === C.cur ? 'cur' : ''}">${mshort(m)}</th>`).join('')}</tr></thead>
+  <div class="panel plan"><table><thead><tr><th class="stick">Category</th>${ms.map(m => `<th class="n ${m === C.cur ? 'cur' : ''}" ${locked(m) ? 'title="Closed month"' : ''}>${locked(m) ? '🔒 ' : ''}${mshort(m)}</th>`).join('')}</tr></thead>
   <tbody>${body}
     <tr class="tot"><td class="stick">Planned in</td>${ms.map(m => `<td>${short(tots[m].inc)}</td>`).join('')}</tr>
     <tr class="tot"><td class="stick">Planned out</td>${ms.map(m => `<td>${short(tots[m].exp)}</td>`).join('')}</tr>
@@ -506,7 +516,7 @@ function loans() {
     const remaining = amts.reduce((s, v) => s + v, 0);
     const paying = amts.filter(v => v > 0).length;
     const lastM = [...C.ms].reverse().find(m => planVal(c, m) > 0);
-    return { c, now: actualVal(c, cur) ?? planVal(c, cur), remaining, paying, lastM, open: lastM === last };
+    return { c, now: eff(c, cur), remaining, paying, lastM, open: lastM === last };
   }).sort((a, b) => b.now - a.now);
   const tNow = rows.reduce((s, r) => s + r.now, 0), tRem = rows.reduce((s, r) => s + r.remaining, 0);
   $('#view').innerHTML = `
@@ -524,7 +534,7 @@ function loans() {
 
 function bizPerf(id) {
   const cats = catList().filter(c => isBiz(c) && c.business === id);
-  const per = C.ms.map(m => { let i = 0, o = 0; cats.forEach(c => { const v = actualVal(c, m) ?? planVal(c, m); if (c.type === 'income') i += v; else o += v; }); return { m, i, o, n: i - o }; });
+  const per = C.ms.map(m => { let i = 0, o = 0; cats.forEach(c => { const v = eff(c, m); if (c.type === 'income') i += v; else o += v; }); return { m, i, o, n: i - o }; });
   return { cats, per };
 }
 
@@ -562,7 +572,7 @@ function business() {
       </div>
       <div class="panel pad"><h3 style="margin-bottom:6px">Net by month (hover a bar for details)</h3>${bizBars(per)}</div>
       <div class="panel scroll"><table><thead><tr><th>Line</th><th>Account</th><th class="n">${mshort(cur)}</th><th class="n">Rest of plan</th><th></th></tr></thead><tbody>
-      ${cats.map(c => { const v = actualVal(c, cur) ?? planVal(c, cur); const r = C.ms.filter(m => m >= cur).reduce((s, m) => s + (actualVal(c, m) ?? planVal(c, m)), 0); return `<tr><td>${esc(c.name)} <span class="dim" style="font-size:12px">${c.type === 'income' ? 'money in' : 'money out'}</span></td><td>${esc(accName(c.account))}</td><td class="n ${c.type === 'income' ? 'pos' : ''}">${inr(v)}</td><td class="n">${inr(r)}</td><td class="n">${canWrite ? `<button class="btn small ghost" data-act="editcat" data-cat="${c.id}">Edit</button>` : ''}</td></tr>`; }).join('') || `<tr><td colspan="5" class="dim">No lines yet. Add rent, sales, salaries, bills or fees for this business.</td></tr>`}
+      ${cats.map(c => { const v = eff(c, cur); const r = C.ms.filter(m => m >= cur).reduce((s, m) => s + (eff(c, m)), 0); return `<tr><td>${esc(c.name)} <span class="dim" style="font-size:12px">${c.type === 'income' ? 'money in' : 'money out'}</span></td><td>${esc(accName(c.account))}</td><td class="n ${c.type === 'income' ? 'pos' : ''}">${inr(v)}</td><td class="n">${inr(r)}</td><td class="n">${canWrite ? `<button class="btn small ghost" data-act="editcat" data-cat="${c.id}">Edit</button>` : ''}</td></tr>`; }).join('') || `<tr><td colspan="5" class="dim">No lines yet. Add rent, sales, salaries, bills or fees for this business.</td></tr>`}
       </tbody></table></div></div>`;
   }).join('');
 }
@@ -581,8 +591,10 @@ function transfers() {
   const opts = sel => accs.map(a => `<option value="${a.id}" ${a.id === sel ? 'selected' : ''}>${esc(a.name)}</option>`).join('');
   const mopts = sel => C.ms.map(m => `<option value="${m}" ${m === sel ? 'selected' : ''}>${mlabel(m)}</option>`).join('');
   if (!trFrom || !C.ms.includes(trFrom)) trFrom = C.ms.includes(addM(C.cur, -2)) ? addM(C.cur, -2) : C.ms[0];
-  const list = C.ms.filter(m => (S.transfers[m]?.items || []).length && m >= trFrom);
-  const pendingPast = C.ms.filter(m => m < C.cur).reduce((n, m) => n + (S.transfers[m]?.items || []).filter(t => !t.actual).length, 0);
+  const vis = m => (S.transfers[m]?.items || []).filter(t => !locked(m) || t.actual);
+  const list = C.ms.filter(m => vis(m).length && m >= trFrom);
+  const openMs = C.ms.filter(m => !locked(m));
+  const pendingPast = C.ms.filter(m => m < C.cur && !locked(m)).reduce((n, m) => n + (S.transfers[m]?.items || []).filter(t => !t.actual).length, 0);
   $('#view').innerHTML = `
   <div class="section"><div class="section-head"><div><h2>Transfers between accounts</h2><div class="hint">A transfer moves money between your own accounts, so family cash stays the same. When you actually move the money, tap <b>Log actual</b> and record the real amount, date and accounts; it replaces the plan.</div></div>
     <label class="f" style="min-width:150px">Show from<select id="tr-from">${mopts(trFrom)}</select></label></div></div>
@@ -592,12 +604,12 @@ function transfers() {
     <label class="f">To<select id="t-to">${opts(accs[accs.length - 1]?.id)}</select></label>
     <label class="f">Amount (₹)<input id="t-amt" inputmode="decimal" placeholder="50,000"></label>
     <label class="f">Reference<input id="t-ref" placeholder="e.g. Car loan top-up"></label>
-    <label class="f">Month<select id="t-m">${mopts(C.cur)}</select></label>
-    <label class="f">Repeat monthly until<select id="t-until"><option value="">Just this month</option>${C.ms.map(m => `<option value="${m}">${mlabel(m)}</option>`).join('')}</select></label>
+    <label class="f">Month<select id="t-m">${openMs.map(m => `<option value="${m}" ${m === (locked(C.cur) ? openMs[0] : C.cur) ? 'selected' : ''}>${mlabel(m)}</option>`).join('')}</select></label>
+    <label class="f">Repeat monthly until<select id="t-until"><option value="">Just this month</option>${openMs.map(m => `<option value="${m}">${mlabel(m)}</option>`).join('')}</select></label>
     <button class="btn primary" data-act="addtr">Add transfer</button>
   </div></div>` : ''}
   <div class="panel scroll" style="margin-top:12px"><table class="trtable"><thead><tr><th>Transfer</th><th class="n">Plan</th><th class="n">Actual</th><th></th></tr></thead><tbody>
-  ${list.map(m => `<tr class="grp"><td colspan="4">${mlabel(m)}</td></tr>` + S.transfers[m].items.map(t => trRow(m, t, true)).join('')).join('') || `<tr><td colspan="4" class="dim">No transfers from ${mlabel(trFrom)} on.</td></tr>`}
+  ${list.map(m => `<tr class="grp"><td colspan="4">${mlabel(m)}${locked(m) ? ' · closed, confirmed only' : ''}</td></tr>` + vis(m).map(t => trRow(m, t, true)).join('')).join('') || `<tr><td colspan="4" class="dim">No transfers from ${mlabel(trFrom)} on.</td></tr>`}
   </tbody></table></div></div>`;
 }
 
@@ -606,7 +618,7 @@ function trRow(m, t, full) {
   const moved = a && (a.from !== t.from || a.to !== t.to);
   const pill = a ? `<span class="pill act">${inr(+a.amount || 0)}</span><div class="dim" style="font-size:12px">${esc(a.date || '')}${moved ? ' · ' + esc(accName(a.from)) + ' → ' + esc(accName(a.to)) : ''}</div>`
     : m < C.cur ? '<span class="pill low">Not logged</span>' : '<span class="dim">planned</span>';
-  const acts = canWrite ? `<div class="row" style="justify-content:flex-end;flex-wrap:nowrap"><button class="btn small" data-act="trlog" data-m="${m}" data-id="${esc(t.id)}">${a ? 'Edit actual' : 'Log actual'}</button>${full ? `<button class="btn small ghost" data-act="trplan" data-m="${m}" data-id="${esc(t.id)}">Edit plan</button><button class="btn small ghost danger" data-act="deltr" data-m="${m}" data-id="${esc(t.id)}">Delete</button>` : ''}</div>` : '';
+  const acts = canWrite && !locked(m) && !(a && locked((a.date || '').slice(0, 7))) ? `<div class="row" style="justify-content:flex-end;flex-wrap:nowrap"><button class="btn small" data-act="trlog" data-m="${m}" data-id="${esc(t.id)}">${a ? 'Edit actual' : 'Log actual'}</button>${full ? `<button class="btn small ghost" data-act="trplan" data-m="${m}" data-id="${esc(t.id)}">Edit plan</button><button class="btn small ghost danger" data-act="deltr" data-m="${m}" data-id="${esc(t.id)}">Delete</button>` : ''}</div>` : '';
   return `<tr><td>${esc(accName(t.from))} → ${esc(accName(t.to))}<div class="dim" style="font-size:12px">${esc(t.ref || '')}</div></td><td class="n ${a ? 'dim' : ''}">${inr(+t.amount || 0)}</td><td class="n">${pill}</td><td class="n">${acts}</td></tr>`;
 }
 
@@ -618,20 +630,21 @@ function trModal(m, id, mode) {
       <label class="f">From<select id="tp-from">${opts(t.from)}</select></label>
       <label class="f">To<select id="tp-to">${opts(t.to)}</select></label>
       <label class="f">Amount (₹)<input id="tp-amt" inputmode="decimal" value="${(+t.amount || 0).toLocaleString('en-IN')}"></label>
-      <label class="f">Month<select id="tp-m">${C.ms.map(x => `<option value="${x}" ${x === m ? 'selected' : ''}>${mlabel(x)}</option>`).join('')}</select></label>
+      <label class="f">Month<select id="tp-m">${C.ms.filter(x => !locked(x)).map(x => `<option value="${x}" ${x === m ? 'selected' : ''}>${mlabel(x)}</option>`).join('')}</select></label>
       <label class="f full">Reference<input id="tp-ref" value="${esc(t.ref || '')}"></label></div>
       <div class="row" style="justify-content:flex-end"><button class="btn ghost" data-act="close">Cancel</button><button class="btn primary" data-act="savetrplan" data-m="${m}" data-id="${esc(id)}">Save plan</button></div>`);
     return;
   }
   const a = t.actual || {};
-  const date = a.date || (m === todayM ? todayD : m + '-01');
+  let date = a.date || (m === todayM ? todayD : m + '-01');
+  if (locked(date.slice(0, 7))) date = firstOpen() + '-01';
   openModal(`<h2>${t.actual ? 'Edit actual transfer' : 'Log actual transfer'}</h2>
     <p class="hint" style="margin:0">Planned: ${inr(+t.amount || 0)} from ${esc(accName(t.from))} to ${esc(accName(t.to))} in ${mlabel(m)}. Record what really happened.</p>
     <div class="form">
       <label class="f">From<select id="ta-from">${opts(a.from || t.from)}</select></label>
       <label class="f">To<select id="ta-to">${opts(a.to || t.to)}</select></label>
       <label class="f">Amount (₹)<input id="ta-amt" inputmode="decimal" value="${(+(a.amount ?? t.amount) || 0).toLocaleString('en-IN')}"></label>
-      <label class="f">Date<input type="date" id="ta-date" value="${date}"></label>
+      <label class="f">Date<input type="date" id="ta-date" value="${date}" min="${firstOpen()}-01"></label>
       <label class="f full">Note<input id="ta-note" value="${esc(a.note || '')}" placeholder="Optional, e.g. sent via NEFT"></label>
     </div>
     <div class="row" style="justify-content:space-between">${t.actual ? `<button class="btn ghost danger" data-act="cleartra" data-m="${m}" data-id="${esc(id)}">Remove actual</button>` : '<span></span>'}<div class="row"><button class="btn ghost" data-act="close">Cancel</button><button class="btn primary" data-act="savetra" data-m="${m}" data-id="${esc(id)}">Save actual</button></div></div>`);
@@ -670,14 +683,15 @@ function entryModal(catId) {
   const c0 = catId ? S.categories[catId] : null; if (c0) entryType = c0.type === 'income' ? 'income' : 'expense';
   const cats = catList().filter(c => (c.type === 'income') === (entryType === 'income'));
   const sel = c0 || cats[0];
-  const date = c0 && selMonth && selMonth !== todayM ? selMonth + '-01' : todayD;
+  let date = c0 && selMonth && selMonth !== todayM ? selMonth + '-01' : todayD;
+  if (locked(date.slice(0, 7))) date = firstOpen() + '-01';
   const p = sel ? planVal(sel, date.slice(0, 7)) : 0;
   openModal(`<h2>Add an entry</h2>
     <div class="seg" role="group"><button data-act="etype" data-t="expense" aria-pressed="${entryType === 'expense'}">Money out</button><button data-act="etype" data-t="income" aria-pressed="${entryType === 'income'}">Money in</button></div>
     <div class="form">
       <label class="f full">Category<select id="e-cat">${cats.map(c => `<option value="${c.id}" ${c === sel ? 'selected' : ''}>${esc(catLabel(c))}</option>`).join('')}</select></label>
       <label class="f">Amount (₹)<input id="e-amt" inputmode="decimal" value="${p ? p.toLocaleString('en-IN') : ''}" placeholder="0"></label>
-      <label class="f">Date<input type="date" id="e-date" value="${date}"></label>
+      <label class="f">Date<input type="date" id="e-date" value="${date}" min="${firstOpen()}-01"></label>
       <label class="f full">Account<select id="e-acc">${C.accs.map(a => `<option value="${a.id}" ${sel && a.id === sel.account ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>
       <label class="f full">Note<input id="e-note" placeholder="Optional, e.g. paid via UPI"></label>
     </div>
@@ -688,7 +702,7 @@ function entryModal(catId) {
 function catModal(id, presetBiz) {
   const c = id ? S.categories[id] : presetBiz ? { name: '', type: 'income', group: 'Business', business: presetBiz, account: C.accs[0]?.id, amounts: {} } : { name: '', type: 'expense', group: 'Household', account: C.accs[0]?.id, amounts: {} };
   const owner = isBiz(c) ? c.business : '';
-  const firstM = C.cur;
+  const firstM = locked(C.cur) ? firstOpen() : C.cur;
   openModal(`<h2>${id ? 'Edit plan row' : 'New plan row'}</h2>
     <div class="form">
       <label class="f full">Name<input id="c-name" value="${esc(c.name)}" placeholder="e.g. School fees"></label>
@@ -700,8 +714,8 @@ function catModal(id, presetBiz) {
     <div class="panel pad" style="background:var(--sunk)"><h3 style="margin-bottom:8px">Fill a fixed amount</h3><div class="form">
       <label class="f">Amount (₹)<input id="c-fill" inputmode="decimal" placeholder="Leave blank to skip"></label>
       <label class="f">Every<select id="c-every"><option value="1">Month</option><option value="3">3 months</option><option value="6">6 months</option><option value="12">Year</option></select></label>
-      <label class="f">From<select id="c-from">${C.ms.map(m => `<option value="${m}" ${m === firstM ? 'selected' : ''}>${mlabel(m)}</option>`).join('')}</select></label>
-      <label class="f">Until<select id="c-to">${C.ms.map(m => `<option value="${m}" ${m === C.ms[C.ms.length - 1] ? 'selected' : ''}>${mlabel(m)}</option>`).join('')}</select></label>
+      <label class="f">From<select id="c-from">${C.ms.filter(m => !locked(m)).map(m => `<option value="${m}" ${m === firstM ? 'selected' : ''}>${mlabel(m)}</option>`).join('')}</select></label>
+      <label class="f">Until<select id="c-to">${C.ms.filter(m => !locked(m)).map(m => `<option value="${m}" ${m === C.ms[C.ms.length - 1] ? 'selected' : ''}>${mlabel(m)}</option>`).join('')}</select></label>
     </div><p class="hint" style="margin:8px 0 0">Months in between are cleared when “Every” is longer than a month. Enter 0 to clear the range.</p></div>
     <div class="row" style="justify-content:space-between">${id ? `<button class="btn ghost danger" data-act="delcat" data-id="${id}">Delete row</button>` : '<span></span>'}<div class="row"><button class="btn ghost" data-act="close">Cancel</button><button class="btn primary" data-act="savecat" data-id="${id || ''}">Save</button></div></div>`);
 }
@@ -724,6 +738,11 @@ document.addEventListener('click', async ev => {
   if (a === 'mprev') { selMonth = addM(selMonth, -1); return render(); }
   if (a === 'mnext') { selMonth = addM(selMonth, 1); return render(); }
   if (a === 'mnow') { selMonth = C.cur; return render(); }
+  if (a === 'reopen') {
+    if (!confirmTwice(t, 'ro' + t.dataset.m)) return;
+    const prev = addM(t.dataset.m, -1);
+    return write(() => db.doc('settings/main').update({ closedThrough: S.settings.start && prev >= S.settings.start ? prev : '' }), mlabel(t.dataset.m) + ' reopened. Fix what you need, then re-enter a bank balance to close it again.');
+  }
   if (a === 'gomonth') { selMonth = t.dataset.m; tab = 'month'; render(); window.scrollTo(0, 0); return; }
   if (a === 'pprev') { planFrom = addM(planFrom, -12); if (planFrom < C.ms[0]) planFrom = C.ms[0]; return render(); }
   if (a === 'pnext') { planFrom = addM(planFrom, 12); return render(); }
@@ -734,6 +753,7 @@ document.addEventListener('click', async ev => {
     if (!cat) return toast('Pick a category first.');
     if (!amt) return toast('Enter an amount above zero.');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return toast('Pick a date for the entry.');
+    if (locked(date.slice(0, 7))) return toast(mlabel(date.slice(0, 7)) + ' is closed. Pick a date from ' + mlabel(firstOpen()) + ' on.');
     const body = { date, month: date.slice(0, 7), categoryId: cat, accountId: $('#e-acc').value, amount: amt, note: $('#e-note').value.trim(), by: uid || '', createdAt: new Date().toISOString() };
     t.disabled = true;
     if (await write(() => db.collection('entries').add(body), 'Entry saved')) closeModal(); else t.disabled = false;
@@ -769,7 +789,7 @@ document.addEventListener('click', async ev => {
     if (fill !== '') {
       const v = num(fill), every = +$('#c-every').value, from = $('#c-from').value, to = $('#c-to').value;
       if (to < from) return toast('“Until” must be after “From”.');
-      range(from, to).forEach((m, i) => { if (i % every === 0 && v) body.amounts[m] = v; else delete body.amounts[m]; });
+      range(from, to).forEach((m, i) => { if (locked(m)) return; if (i % every === 0 && v) body.amounts[m] = v; else delete body.amounts[m]; });
     }
     t.disabled = true;
     if (await write(() => db.doc('categories/' + id).set(body), 'Plan row saved')) closeModal(); else t.disabled = false;
@@ -781,6 +801,7 @@ document.addEventListener('click', async ev => {
     if (from === to) return toast('Pick two different accounts.');
     if (!amount) return toast('Enter an amount above zero.');
     if (until < m0) return toast('“Repeat until” must be after the first month.');
+    if (locked(m0)) return toast(mlabel(m0) + ' is closed.');
     t.disabled = true;
     let ok = true;
     for (const m of range(m0, until)) {
@@ -800,6 +821,7 @@ document.addEventListener('click', async ev => {
       if (from === to) return toast('Pick two different accounts.');
       if (!amount) return toast('Enter the amount you actually moved.');
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return toast('Pick the date of the transfer.');
+      if (locked(date.slice(0, 7))) return toast(mlabel(date.slice(0, 7)) + ' is closed. Pick a date from ' + mlabel(firstOpen()) + ' on.');
       actual = { from, to, amount, date, note: $('#ta-note').value.trim(), by: uid || '', at: new Date().toISOString() };
     } else if (!confirmTwice(t, 'ta' + id)) return;
     const items = (S.transfers[m]?.items || []).map(x => { if (x.id !== id) return x; const y = { ...x }; if (actual) y.actual = actual; else delete y.actual; return y; });
@@ -851,12 +873,20 @@ document.addEventListener('change', async ev => {
   if (el.id === 'tr-from') { trFrom = el.value; el.blur(); return render(); }
   if (el.dataset.balAcc) {
     const m = el.dataset.m, acc = el.dataset.balAcc, raw = el.value.trim();
+    if (locked(m)) return toast(mlabel(m) + ' is closed.');
     const v = raw === '' ? null : num(raw);
     const cur = S.balances[m]?.values?.[acc];
     if ((cur ?? null) === v) return;
     if (v !== null) el.value = v.toLocaleString('en-IN');
     const ref = db.doc('balances/' + m);
-    await write(() => S.balances[m] ? ref.update({ values: { [acc]: v }, updatedBy: uid || '', updatedAt: new Date().toISOString() }) : ref.set({ month: m, values: { [acc]: v }, updatedBy: uid || '', updatedAt: new Date().toISOString() }), v === null ? 'Bank balance cleared' : 'Bank balance saved');
+    const ok = await write(() => S.balances[m] ? ref.update({ values: { [acc]: v }, updatedBy: uid || '', updatedAt: new Date().toISOString() }) : ref.set({ month: m, values: { [acc]: v }, updatedBy: uid || '', updatedAt: new Date().toISOString() }), v === null ? 'Bank balance cleared' : 'Bank balance saved');
+    if (ok && v !== null) {
+      const vals = { ...(S.balances[m]?.values || {}), [acc]: v };
+      const all = C.accs.every(a => vals[a.id] !== null && vals[a.id] !== undefined && vals[a.id] !== '' && isFinite(+vals[a.id]));
+      if (all && m > closedThrough()) {
+        if (await write(() => db.doc('settings/main').update({ closedThrough: m, closedAt: new Date().toISOString(), closedBy: uid || '' }))) toast(mlabel(m) + ' is closed. It and earlier months are now locked.');
+      }
+    }
     return;
   }
   if (el.classList.contains('cell')) {
@@ -885,7 +915,7 @@ window.addEventListener('resize', () => { if (tab === 'overview' && C) drawChart
   try { db = await window.claude?.use?.('db'); } catch (e) { db = null; }
   try { user = await window.claude?.use?.('user'); } catch (e) { user = null; }
   if (user) {
-    try { uid = await user.id(); const w = await user.can('data.write'); canWrite = w !== false; const me = await user.me();
+    try { uid = await user.id(); const w = await user.can('data.write'); canWrite = w !== false; isAdmin = !!(await user.canEdit()); const me = await user.me();
       const who = $('#who'); who.textContent = ''; const img = document.createElement('img'); img.src = me.avatarUrl; img.alt = ''; who.append(img, document.createTextNode(me.name || 'You'));
     } catch (e) {}
   }
