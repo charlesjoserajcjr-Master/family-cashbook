@@ -1,0 +1,44 @@
+name: Build Windows desktop app
+
+# Builds Family Cashbook for Windows (installer + portable .exe) and puts both on the Releases page.
+on:
+  push:
+    branches: [main]
+    paths: ["www/**", "desktop/**", "scripts/prepare-web.mjs", ".github/workflows/desktop.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install web tools
+        run: npm install --no-audit --no-fund
+      - name: Bundle fonts into the app (works offline)
+        run: npm run prepare-web
+      - name: Copy the app into the desktop project
+        run: rm -rf desktop/www && cp -r www desktop/www && rm -f desktop/www/sw.js
+      - name: Install desktop tools
+        working-directory: desktop
+        run: npm install --no-audit --no-fund && npm pkg set version=1.0.${{ github.run_number }}
+      - name: Build the Windows app
+        working-directory: desktop
+        run: npx electron-builder --win --publish never
+      - name: Put the Windows app on the Releases page
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -la desktop/dist
+          gh release create "desktop-${{ github.run_number }}" desktop/dist/*.exe \
+            --target "${{ github.sha }}" --latest=false \
+            --title "Windows desktop app 1.0.${{ github.run_number }}" \
+            --notes "Download Family-Cashbook-Setup-1.0.${{ github.run_number }}.exe to install (recommended), or the Portable .exe to run without installing. Works fully offline. Windows may say 'Windows protected your PC': click More info, then Run anyway."

@@ -32,6 +32,16 @@ GitHub builds the app for you. No Mac is needed, not even for iPhone.
 Run it by hand only: Mac minutes use the free GitHub allowance about 10x faster.
 App Store signing and upload get added once the Apple Developer account (paid yearly) is set up.
 
+## Windows desktop app (fully offline)
+
+Every change to the app builds a Windows version automatically (**Actions → Build Windows desktop app**).
+On the **Releases** page, open the newest *Windows desktop app* and download
+`Family-Cashbook-Setup-….exe` (installs with Start-menu and desktop shortcuts) or the Portable `.exe`
+(runs without installing, e.g. from a USB stick). It needs no internet at all. The ledger is saved as
+`Documents\Family Cashbook\family-cashbook-data.json`, with a dated copy in `Backups` every day;
+**Accounts & setup → Change folder…** can move it (e.g. into a Google Drive or OneDrive folder).
+Windows may show "Windows protected your PC" because the app isn't code-signed: click **More info → Run anyway**.
+
 ## Where the data lives
 
 Each device keeps a working copy, so the app works offline. With **Google Drive sync** on, the ledger is
@@ -82,6 +92,7 @@ personal use. Before a public Play Store / App Store release, set the audience t
 | `assets/` | App icon and splash screen (placeholders, replace with final artwork) |
 | `capacitor.config.json` | App name and ID `com.familycashbook.app`. **Never change the ID after publishing** |
 | `scripts/` | Build helpers: bundle fonts, set version and signing |
+| `desktop/` | Windows desktop app (Electron): window, data file, daily backups |
 | `.github/workflows/` | Android build, upload-key creator, iPhone check build, web app publishing |
 
 Never put real financial data or backup files in this repository.

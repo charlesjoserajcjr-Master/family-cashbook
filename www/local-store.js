@@ -14,6 +14,7 @@
   const NATIVE = !!(cap && cap.isNativePlatform && cap.isNativePlatform());
   const Plug = n => (cap && cap.Plugins && cap.Plugins[n]) || null;
   const FS = NATIVE ? Plug('Filesystem') : null;
+  const DESK = window.cashbookDesktop || null; // Windows desktop app: data lives in a normal file
 
   let docs = new Map();   // path -> data
   let times = new Map();  // path -> last change (ms)
@@ -32,18 +33,21 @@
   }
   async function readAll() {
     try {
-      const txt = FS ? (await FS.readFile({ path: FILE, directory: 'DATA', encoding: 'utf8' })).data : localStorage.getItem(FILE);
+      const txt = DESK ? await DESK.read() : FS ? (await FS.readFile({ path: FILE, directory: 'DATA', encoding: 'utf8' })).data : localStorage.getItem(FILE);
       if (txt) load(JSON.parse(txt));
     } catch (e) { /* first run */ }
   }
   const ready = readAll();
+  // Desktop: never lose the last change when the window closes.
+  if (DESK) window.addEventListener('beforeunload', () => { if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; DESK.writeSync(JSON.stringify(snapshot())); } });
   const snapshot = () => ({ app: 'family-cashbook', version: 2, savedAt: new Date().toISOString(), docs: Object.fromEntries(docs), times: Object.fromEntries(times), tomb: Object.fromEntries(tomb) });
   let saveTimer = null;
   function persist() {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(async () => {
+      saveTimer = null;
       const txt = JSON.stringify(snapshot());
-      try { if (FS) await FS.writeFile({ path: FILE, directory: 'DATA', encoding: 'utf8', data: txt, recursive: true }); else localStorage.setItem(FILE, txt); }
+      try { if (DESK) await DESK.write(txt); else if (FS) await FS.writeFile({ path: FILE, directory: 'DATA', encoding: 'utf8', data: txt, recursive: true }); else localStorage.setItem(FILE, txt); }
       catch (e) { console.error('Could not save data', e); }
     }, 200);
   }
@@ -225,6 +229,7 @@
     await ready;
     const txt = JSON.stringify(snapshot(), null, 1);
     const name = 'family-cashbook-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+    if (DESK) return (await DESK.saveFile(name, txt)) ? 'saved' : 'cancelled';
     const Share = Plug('Share');
     if (FS && Share) {
       const w = await FS.writeFile({ path: name, directory: 'CACHE', encoding: 'utf8', data: txt });
@@ -283,11 +288,17 @@
   })();
 
   async function exportFile(name, text, mime) {
+    if (DESK) return DESK.saveFile(name, text);
     const Share = Plug('Share');
     if (FS && Share) { const w = await FS.writeFile({ path: name, directory: 'CACHE', encoding: 'utf8', data: text }); await Share.share({ title: name, url: w.uri, dialogTitle: 'Save or send' }); return; }
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: mime || 'text/plain' })); a.download = name; a.click();
   }
 
-  window.__cashbookLocal = { exportData, importData, exportFile, drive: Drive, pwa };
+  const desktop = DESK ? {
+    info: () => DESK.info(), openFolder: () => DESK.openFolder(),
+    async chooseFolder() { if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; await DESK.write(JSON.stringify(snapshot())); } const r = await DESK.chooseFolder(); if (r && r.reload) location.reload(); return r; },
+  } : null;
+
+  window.__cashbookLocal = { exportData, importData, exportFile, drive: Drive, pwa, desktop };
   window.claude = { use: async name => name === 'db' ? db : name === 'user' ? user : null };
 })();

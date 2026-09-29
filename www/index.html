@@ -982,6 +982,7 @@ function txModal(kind) {
 
 function setup() {
   const st = S.settings;
+  if (window.__cashbookLocal?.desktop) setTimeout(async () => { const el = $('#desk-dir'); if (el) { try { el.textContent = (await window.__cashbookLocal.desktop.info()).dir; } catch (e) {} } }, 0);
   $('#view').innerHTML = `
   <div class="section"><div class="section-head"><div><h2>Accounts</h2><div class="hint">Opening balance is the balance at the start of ${mlabel(st.start)}. Changes save when you leave the field.</div></div>${canWrite ? '<button class="btn small primary" data-act="addacc">+ Account</button>' : ''}</div>
   <div class="panel scroll"><table><thead><tr><th>Name</th><th>Type</th><th class="n">Opening balance</th><th class="n">Minimum balance</th><th>Notes</th><th></th></tr></thead><tbody>
@@ -997,6 +998,11 @@ function setup() {
     <label class="f">Plan starts<input type="month" id="s-start" value="${st.start}" ${canWrite ? '' : 'readonly'}></label>
     <label class="f">Plan ends<input type="month" id="s-end" value="${st.end}" ${canWrite ? '' : 'readonly'}></label>
   </div><p class="hint" style="margin:10px 0 0">Extending the end adds empty months. Use Edit on a Plan row to fill a recurring amount into the new months.</p></div></div>
+  ${window.__cashbookLocal?.desktop ? `<div class="section"><h2>Where your data is saved</h2>
+  <div class="panel pad"><p style="margin:0 0 6px"><span class="pill ok">Saved on this computer</span></p>
+    <p class="hint" style="margin:0 0 6px">Your ledger is the file <b>family-cashbook-data.json</b> in <b id="desk-dir">…</b>. A dated copy goes into its <b>Backups</b> folder every day (the last 60 days are kept). Everything works without internet.</p>
+    <p class="hint" style="margin:0 0 10px">To keep a copy in the cloud or use the same ledger on another laptop, choose a folder inside <b>Google Drive for desktop</b> or <b>OneDrive</b>. A USB stick works too.</p>
+    <div class="row"><button class="btn" data-act="desk-open">Open data folder</button><button class="btn" data-act="desk-choose">Change folder…</button></div></div></div>` : ''}
   ${window.__cashbookLocal?.drive?.configured() ? (() => { const D = window.__cashbookLocal.drive; return `<div class="section"><h2>Google Drive sync</h2>
   <div class="panel pad">${D.connected
     ? `<p style="margin:0 0 6px"><span class="pill ok">Connected</span> ${D.email ? 'as <b>' + esc(D.email) + '</b>' : ''}</p><p class="hint" style="margin:0 0 10px">Your ledger is saved in your Google Drive as “Family Cashbook data.json”. Sign in with the same Google account on your phone, tablet or laptop to use the same ledger. Changes sync automatically when you're online. ${D.lastSync ? 'Last synced ' + new Date(D.lastSync).toLocaleString() + '.' : ''}</p>
@@ -1010,7 +1016,7 @@ function setup() {
     <p class="hint" style="margin:0 0 10px">${P.installed ? 'Family Cashbook opens from its own icon, with or without internet.' : 'Install it to open Family Cashbook from its own icon, with or without internet.'} ${P.persisted ? 'The browser will keep your ledger even when disk space runs low.' : 'Installing the app usually lets the browser protect your ledger from automatic clean-up.'} Clearing the browser's history or site data still deletes it, so keep backups.</p>
     <div class="row">${P.canInstall ? '<button class="btn primary" data-act="pwa-install">Install Family Cashbook</button>' : P.installed ? '' : '<span class="hint" style="margin:0">To install: in Chrome, open the ⋮ menu → <b>Cast, save and share → Install page as app</b>. In Edge: ⋯ menu → <b>Apps → Install this site as an app</b>.</span>'}${P.persisted === false ? '<button class="btn" data-act="pwa-protect">Protect storage</button>' : ''}</div></div></div>`; })() : ''}
   ${window.__cashbookLocal ? `<div class="section"><h2>Backup</h2>
-  <div class="panel pad"><p class="hint" style="margin:0 0 10px">${window.__cashbookLocal?.drive?.connected ? 'Google Drive keeps your ledger safe. A backup file is an extra copy you can keep anywhere.' : 'Without Drive sync your ledger is stored only on this device. Save a backup regularly so you can restore it on a new device.'}</p>
+  <div class="panel pad"><p class="hint" style="margin:0 0 10px">${window.__cashbookLocal?.drive?.connected ? 'Google Drive keeps your ledger safe. A backup file is an extra copy you can keep anywhere.' : (window.__cashbookLocal?.desktop ? 'The app already keeps daily copies in the Backups folder. A backup file is an extra copy you can keep anywhere, such as a USB stick or email.' : 'Without Drive sync your ledger is stored only on this device. Save a backup regularly so you can restore it on a new device.')}</p>
   <div class="row"><button class="btn primary" data-act="backup">Save a backup</button><label class="btn" for="restore-file">Restore from a backup</label><input type="file" id="restore-file" accept=".json,application/json" hidden></div></div></div>`
   : `<div class="section"><h2>Sharing with the family</h2>
   <div class="panel pad hint" style="max-width:none">Share this page from its menu. Give family members <b>Editor</b> access so they can log salaries, bills and EMIs as they happen; people with view access can see everything but not change it. Every entry records who added it.</div></div>`}`;
@@ -1154,6 +1160,8 @@ document.addEventListener('click', async ev => {
   }
   if (a === 'pwa-install') { const ok = await window.__cashbookLocal.pwa.install(); if (ok) toast('Installed. Open Family Cashbook from its icon, even offline.'); return render(); }
   if (a === 'pwa-protect') { await window.__cashbookLocal.pwa.protect(); toast(window.__cashbookLocal.pwa.persisted ? 'Storage protected' : 'The browser declined for now. Installing the app usually allows it.'); return render(); }
+  if (a === 'desk-open') { window.__cashbookLocal.desktop.openFolder(); return; }
+  if (a === 'desk-choose') { const r = await window.__cashbookLocal.desktop.chooseFolder(); if (r) { toast(r.reload ? 'Using the ledger already in that folder.' : 'Your ledger now saves to the new folder.'); render(); } return; }
   if (a === 'backup') { try { await window.__cashbookLocal.exportData(); } catch (e) { if (!/cancel/i.test(e?.message || '')) toast('Could not save the backup: ' + (e?.message || e)); } return; }
   if (a === 'newcat') return catModal(null, t.dataset.biz);
   if (a === 'newbiz') return bizModal(null);
