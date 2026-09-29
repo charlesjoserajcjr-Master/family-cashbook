@@ -37,9 +37,9 @@ img{max-width:100%}
 *{box-sizing:border-box}
 html,body{background:var(--bg)}
 body{color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.45;font-variant-numeric:tabular-nums}
-.wrap{max-width:1180px;margin:0 auto;padding-inline:16px;padding-block:0 96px}
+.wrap{max-width:1360px;margin:0 auto;padding-inline:16px;padding-block:0 96px}
 header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--bg);border-bottom:1px solid var(--line)}
-.top-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-block:14px 8px;max-width:1180px;margin:0 auto;padding-inline:16px}
+.top-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-block:14px 8px;max-width:1360px;margin:0 auto;padding-inline:16px}
 .brand{display:flex;align-items:baseline;gap:10px;min-width:0}
 .brand h1{font-family:var(--display);font-weight:700;font-size:22px;letter-spacing:-.01em;margin:0}
 .brand .sub{color:var(--muted);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -47,7 +47,7 @@ header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;backgroun
 .brand h1{white-space:nowrap}
 @media (max-width:560px){.brand{flex-direction:column;align-items:flex-start;gap:0}.brand h1{font-size:20px}.brand .sub{max-width:100%}}
 .who img{width:26px;height:26px;border-radius:50%}
-nav.tabs{display:flex;gap:4px;overflow-x:auto;max-width:1180px;margin:0 auto;padding-inline:12px;scrollbar-width:none}
+nav.tabs{display:flex;gap:4px;overflow-x:auto;max-width:1360px;margin:0 auto;padding-inline:12px;scrollbar-width:none}
 nav.tabs::-webkit-scrollbar{display:none}
 nav.tabs button{appearance:none;border:0;background:none;color:var(--ink2);font:500 14px var(--body);padding:10px 12px;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap}
 nav.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
@@ -119,6 +119,37 @@ tr.tot td{font-weight:600;border-top:1px solid var(--line)}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 
 .monthbar{display:flex;align-items:center;gap:8px}
+.loanwrap{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}
+@media (min-width:1260px){.loanwrap{grid-template-columns:minmax(0,1.85fr) minmax(320px,1fr)}.loandetail{position:sticky;top:calc(env(safe-area-inset-top,0px) + 110px);max-height:calc(100vh - 130px);overflow:auto}}
+.loantable td{vertical-align:middle}
+.loanrow{cursor:pointer}
+.loanrow:hover td{background:var(--sunk)}
+.loanrow.sel td{background:var(--accent-soft)}
+.loanrow.sel td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
+input.loanin{width:112px;text-align:right}
+.loantable th,.loantable td{padding-inline:10px}
+.loantable td{white-space:nowrap}
+.loantable td:first-child{white-space:normal;min-width:140px}
+@media (max-width:640px){
+  .loantable thead{display:none}
+  .loantable tr.loanrow{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 12px;padding:12px;border-bottom:1px solid var(--line)}
+  .loantable tr.loanrow td{border:0;padding:0;text-align:left;background:none!important;box-shadow:none!important}
+  .loantable tr.loanrow td:first-child,.loantable tr.loanrow td:nth-child(6){grid-column:1/-1}
+  .loantable tr.loanrow.sel{background:var(--accent-soft);box-shadow:inset 3px 0 0 var(--accent)}
+  .loantable tr.loanrow td:nth-child(n+2):nth-child(-n+5)::before{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px}
+  .loantable tr.loanrow td:nth-child(2)::before{content:"Outstanding"}
+  .loantable tr.loanrow td:nth-child(3)::before{content:"Scheduled payment"}
+  .loantable tr.loanrow td:nth-child(4)::before{content:"Interest % a year"}
+  .loantable tr.loanrow td:nth-child(5)::before{content:"Ends"}
+  .loantable input.loanin{width:100%!important;text-align:left}
+}
+input.loanin:placeholder-shown{border-style:dashed}
+.lkgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+@media (min-width:600px) and (max-width:1259px){.lkgrid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.lk{display:grid;gap:2px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;min-width:0}
+.lk .l{font-size:12px;color:var(--ink2)}
+.lk .v{font-family:var(--display);font-weight:700;font-size:18px}
+.lk .s{font-size:11.5px;color:var(--muted)}
 input.balin{width:108px;text-align:right}
 @media (max-width:560px){
   .trtable thead{display:none}
@@ -508,28 +539,129 @@ function plan() {
   </tbody></table></div></div>`;
 }
 
+const tenureTxt = n => { if (n == null) return '—'; const y = Math.floor(n / 12), mo = n % 12; return (y ? y + (y > 1 ? ' yrs' : ' yr') : '') + (y && mo ? ' ' : '') + (mo || !y ? mo + (mo === 1 ? ' mo' : ' mos') : ''); };
+
+function loanInfo(c) {
+  const L = c.loan || {}, cur = C.cur;
+  const planned = C.ms.filter(m => planVal(c, m) > 0);
+  const lastPlanM = planned[planned.length - 1] || null;
+  const lastPay = lastPlanM ? planVal(c, lastPlanM) : 0;
+  const pay = m => (lastPlanM && m <= lastPlanM) ? eff(c, m) : lastPay; // after the plan ends, assume the last EMI continues
+  const sched = eff(c, cur) || C.ms.filter(m => m >= cur).map(m => planVal(c, m)).find(v => v > 0) || lastPay || 0;
+  const kind = L.kind === 'interest' ? 'interest' : 'emi';
+  const has = L.outstanding !== null && L.outstanding !== undefined && L.outstanding !== '' && +L.outstanding > 0;
+  const rate = +L.rate || 0, r = rate / 1200;
+  const o = { c, L, has, kind, rate, sched, lastPlanM, lastPay, asOf: L.asOf || '', rows: [], now: null, end: null, months: null, totInt: null, stuck: false };
+  if (!has) return o;
+  const asOfM = (L.asOf || cur).slice(0, 7);
+  const start = addM(asOfM, 1) > cur ? addM(asOfM, 1) : cur;
+  let B = +L.outstanding;
+  if (kind === 'emi') for (let m = addM(asOfM, 1); m < start; m = addM(m, 1)) B = Math.max(0, B + B * r - pay(m));
+  o.now = B; o.start = start;
+  if (kind === 'interest') {
+    const mat = L.maturity || '';
+    const n = mat && mat >= start ? range(start, mat).length : null;
+    const i = B * r;
+    if (n) for (let k = 0, m = start; k < n; k++, m = addM(m, 1)) o.rows.push({ m, pay: i + (k === n - 1 ? B : 0), int: i, prin: k === n - 1 ? B : 0, bal: k === n - 1 ? 0 : B });
+    o.months = n; o.end = n ? mat : null; o.totInt = n ? i * n : null; o.monthlyInt = i;
+    return o;
+  }
+  let tot = 0;
+  for (let m = start, k = 0; B > 0.5 && k < 600; m = addM(m, 1), k++) {
+    const i = B * r, p0 = pay(m);
+    if (p0 <= 0 && (!lastPlanM || m > lastPlanM)) { o.stuck = true; break; }
+    const p = Math.min(p0, B + i);
+    B = B + i - p; tot += i;
+    o.rows.push({ m, pay: p, int: i, prin: p - i, bal: B });
+    if (k >= 24 && p <= i) { o.stuck = true; break; }
+  }
+  if (!o.stuck && B <= 0.5 && o.rows.length) { o.end = o.rows[o.rows.length - 1].m; o.months = o.rows.length; o.totInt = tot; }
+  else o.stuck = true;
+  return o;
+}
+
+let selLoan = null, showSched = false;
 function loans() {
-  const cur = C.cur, last = C.ms[C.ms.length - 1];
-  const rows = catList().filter(c => c.group === 'Loans & EMIs').map(c => {
-    const ahead = C.ms.filter(m => m >= cur);
-    const amts = ahead.map(m => planVal(c, m));
-    const remaining = amts.reduce((s, v) => s + v, 0);
-    const paying = amts.filter(v => v > 0).length;
-    const lastM = [...C.ms].reverse().find(m => planVal(c, m) > 0);
-    return { c, now: eff(c, cur), remaining, paying, lastM, open: lastM === last };
-  }).sort((a, b) => b.now - a.now);
-  const tNow = rows.reduce((s, r) => s + r.now, 0), tRem = rows.reduce((s, r) => s + r.remaining, 0);
+  const cur = C.cur, horizonEnd = C.ms[C.ms.length - 1];
+  const list = catList().filter(c => c.group === 'Loans & EMIs').map(loanInfo).sort((a, b) => (b.now ?? -1) - (a.now ?? -1) || b.sched - a.sched);
+  if (selLoan && !list.find(x => x.c.id === selLoan)) selLoan = null;
+  const withBal = list.filter(x => x.has);
+  const totOut = withBal.reduce((s, x) => s + x.now, 0);
+  const avgRate = totOut ? withBal.reduce((s, x) => s + x.now * x.rate, 0) / totOut : 0;
+  const emiNow = list.reduce((s, x) => s + eff(x.c, cur), 0);
+  const ends = withBal.filter(x => x.end).map(x => x.end).sort();
+  const missing = list.length - withBal.length;
+  const intLeft = withBal.reduce((s, x) => s + (x.totInt || 0), 0);
+  const inp = (x, f, v, extra) => `<input class="loanin" id="ln-${f}-${x.c.id}" data-loan-f="${f}" data-cat="${x.c.id}" inputmode="decimal" value="${v}" placeholder="${f === 'rate' ? '% p.a.' : 'Enter'}" ${canWrite ? '' : 'readonly'} ${extra || ''}>`;
   $('#view').innerHTML = `
-  <div class="kpis" style="grid-template-columns:repeat(3,minmax(0,1fr))">
-    <div class="panel kpi"><span class="l">EMIs &amp; loan interest in ${mlabel(cur)}</span><span class="v">${short(tNow)}</span><span class="s">${inr(tNow)}</span></div>
-    <div class="panel kpi"><span class="l">Still to pay within the plan</span><span class="v">${short(tRem)}</span><span class="s">${mlabel(cur)} to ${mlabel(last)}</span></div>
-    <div class="panel kpi"><span class="l">Share of this month's income</span><span class="v">${C.flow[cur]?.inc ? Math.round(tNow / C.flow[cur].inc * 100) + '%' : '—'}</span><span class="s">of ${inr(C.flow[cur]?.inc || 0)} coming in</span></div>
+  <div class="kpis">
+    <div class="panel kpi"><span class="l">Total outstanding</span><span class="v">${withBal.length ? short(totOut) : '—'}</span><span class="s">${withBal.length ? inr(totOut) : 'Enter balances below'}${missing && withBal.length ? ` · ${missing} without a balance` : ''}</span></div>
+    <div class="panel kpi"><span class="l">EMIs &amp; interest in ${mlabel(cur)}</span><span class="v">${short(emiNow)}</span><span class="s">${C.flow[cur]?.inc ? Math.round(emiNow / C.flow[cur].inc * 100) + '% of this month\'s income' : inr(emiNow)}</span></div>
+    <div class="panel kpi"><span class="l">Average interest rate</span><span class="v">${totOut && avgRate ? avgRate.toFixed(2) + '%' : '—'}</span><span class="s">Weighted by balance · interest left ${intLeft ? short(intLeft) : '—'}</span></div>
+    <div class="panel kpi"><span class="l">Debt-free by</span><span class="v">${ends.length && !missing && !withBal.some(x => x.stuck && x.kind === 'emi') ? mlabel(ends[ends.length - 1]) : '—'}</span><span class="s">${missing ? 'Needs every loan\'s balance' : withBal.some(x => x.stuck) ? 'Some loans have no end date' : 'When the last loan is repaid'}</span></div>
   </div>
-  <div class="section"><div class="section-head"><h2>Loans and EMIs</h2><span class="hint">Built from Plan rows in the “Loans &amp; EMIs” group. “Runs past plan” means payments continue beyond ${mlabel(last)}; extend the plan in Accounts &amp; setup to see them.</span></div>
-  <div class="panel scroll"><table><thead><tr><th>Loan</th><th>Paid from</th><th class="n">This month</th><th class="n">Payments left in plan</th><th class="n">Left to pay in plan</th><th>Last payment</th></tr></thead><tbody>
-  ${rows.map(r => `<tr><td>${esc(r.c.name)}</td><td>${esc(accName(r.c.account))}</td><td class="n">${inr(r.now)}</td><td class="n">${r.paying}</td><td class="n">${inr(r.remaining)}</td><td>${r.lastM ? (r.open ? '<span class="pill act">Runs past plan</span>' : mlabel(r.lastM)) : '<span class="dim">—</span>'}</td></tr>`).join('') || `<tr><td colspan="6" class="dim">No rows in the Loans &amp; EMIs group yet. Edit a Plan row and set its group.</td></tr>`}
-  <tr class="tot"><td colspan="2">Total</td><td class="n">${inr(tNow)}</td><td></td><td class="n">${inr(tRem)}</td><td></td></tr>
-  </tbody></table></div></div>`;
+  <div class="section"><div class="section-head"><div><h2>Loans and commitments</h2><div class="hint">Type the outstanding principal and interest rate from your latest statement; the balance date updates to today. Tap a loan for its tenure, end date and repayment schedule. Scheduled payments come from the Plan tab.</div></div>${canWrite ? '<button class="btn small primary" data-act="newloan">+ Loan</button>' : ''}</div>
+  <div class="loanwrap">
+    <div class="panel scroll"><table class="loantable"><thead><tr><th>Loan / commitment</th><th class="n">Outstanding principal</th><th class="n">EMI / payment</th><th class="n">Rate % p.a.</th><th>Ends</th><th>Actions</th></tr></thead><tbody>
+    ${list.map(x => `<tr class="loanrow ${x.c.id === selLoan ? 'sel' : ''}" data-loan="${x.c.id}" tabindex="0">
+      <td><b style="font-weight:600">${esc(x.c.name)}</b><div class="dim" style="font-size:12px">${esc(accName(x.c.account))}${x.kind === 'interest' ? ' · interest only' : ''}</div></td>
+      <td class="n">${inp(x, 'outstanding', x.has ? (+x.L.outstanding).toLocaleString('en-IN') : '')}<div class="dim" style="font-size:11.5px;margin-top:2px">${x.asOf ? 'as of ' + esc(x.asOf) : 'from your statement'}</div></td>
+      <td class="n">${x.sched ? inr(x.sched) : '<span class="dim">—</span>'}</td>
+      <td class="n">${inp(x, 'rate', x.L.rate ? x.L.rate : '', 'style="width:66px"')}</td>
+      <td>${!x.has ? '<span class="dim">—</span>' : x.end ? mlabel(x.end) : `<span class="pill low">${x.kind === 'interest' ? 'Set maturity' : 'No end'}</span>`}</td>
+      <td><div class="row" style="flex-wrap:nowrap"><button class="btn small" data-act="loansched" data-cat="${x.c.id}">Schedule</button>${canWrite ? `<button class="btn small ghost" data-act="loanedit" data-cat="${x.c.id}" aria-label="Edit ${esc(x.c.name)}">✎</button>` : ''}</div></td></tr>`).join('') || `<tr><td colspan="6" class="dim">No loans yet. Add one with “+ Loan”, or move a Plan row into the “Loans &amp; EMIs” group.</td></tr>`}
+    </tbody></table></div>
+    <div class="panel pad loandetail" id="loandetail">${selLoan ? loanDetail(list.find(x => x.c.id === selLoan), horizonEnd) : '<div class="empty" style="padding:20px 8px"><b>Pick a loan</b>Tap any loan to see its outstanding balance today, remaining tenure, end date and repayment schedule.</div>'}</div>
+  </div></div>`;
+  if (selLoan && window.innerWidth < 1260 && loans._scroll) { loans._scroll = false; $('#loandetail').scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+}
+
+function loanDetail(x, horizonEnd) {
+  const c = x.c;
+  const head = `<div class="section-head" style="margin-bottom:10px"><div><h2>${esc(c.name)}</h2><div class="hint">${esc(accName(c.account))} · ${x.kind === 'interest' ? 'Interest-only loan' : 'EMI loan'}</div></div>${canWrite ? `<button class="btn small" data-act="loanedit" data-cat="${c.id}">Edit loan</button>` : ''}</div>`;
+  if (!x.has) return head + `<div class="empty" style="padding:16px 8px"><b>Add the loan details</b>Enter the outstanding principal and interest rate from your latest loan statement to see tenure, end date and schedule.${canWrite ? `<div style="margin-top:12px"><button class="btn primary" data-act="loanedit" data-cat="${c.id}">Enter loan details</button></div>` : ''}</div>`;
+  const cards = [
+    ['Outstanding today', inr(x.now), x.asOf ? `${inr(+x.L.outstanding)} on ${esc(x.asOf)}` : ''],
+    ['Interest rate', x.rate ? x.rate + '% p.a.' : 'Not entered', x.kind === 'interest' ? `Monthly interest ${inr(x.monthlyInt || 0)}` : ''],
+    ['Scheduled payment', inr(x.sched), x.kind === 'interest' ? 'Should cover the interest' : 'Monthly EMI from the plan'],
+    ['Remaining tenure', x.months ? tenureTxt(x.months) : '—', x.months ? x.months + ' payments' : ''],
+    ['Ends', x.end ? mlabel(x.end) : '—', x.end && x.end > horizonEnd ? 'After your plan ends' : ''],
+    ['Interest still to pay', x.totInt != null ? inr(x.totInt) : '—', x.totInt != null && x.now ? 'on ' + inr(x.now) + ' principal' : ''],
+  ].map(([l, v, s]) => `<div class="lk"><span class="l">${l}</span><span class="v">${v}</span>${s ? `<span class="s">${s}</span>` : ''}</div>`).join('');
+  let warn = '';
+  if (x.kind === 'emi' && x.stuck) warn = `<div class="alert"><span class="ic">!</span><div>At ${inr(x.lastPay || x.sched)} a month this loan is never repaid${x.rate ? `; the payment barely covers the ${x.rate}% interest` : ''}. Check the rate and balance, or raise the EMI in the Plan tab.</div></div>`;
+  else if (x.kind === 'interest' && !x.end) warn = `<div class="alert" style="background:var(--warn-soft)"><span class="ic" style="background:var(--warn)">?</span><div>Set a maturity month to see when the principal of ${inr(x.now)} falls due.</div></div>`;
+  else if (x.kind === 'emi' && x.end && x.lastPlanM && x.end > x.lastPlanM) warn = `<div class="alert" style="background:var(--warn-soft)"><span class="ic" style="background:var(--warn)">!</span><div>Your plan has EMIs only until ${mlabel(x.lastPlanM)}, but this loan runs to ${mlabel(x.end)}.${x.lastPlanM < horizonEnd && canWrite ? ` <button class="btn small" data-act="loanfit" data-cat="${c.id}">Add EMIs to the plan up to ${mlabel(x.end < horizonEnd ? x.end : horizonEnd)}</button>` : ' The rest falls after your plan ends; extend it in Accounts &amp; setup.'}</div></div>`;
+  else if (x.kind === 'emi' && x.end && x.lastPlanM && x.end < x.lastPlanM) warn = `<div class="alert" style="background:var(--warn-soft)"><span class="ic" style="background:var(--warn)">!</span><div>This loan is repaid in ${mlabel(x.end)}, but the plan still has EMIs until ${mlabel(x.lastPlanM)}.${canWrite ? ` <button class="btn small" data-act="loanfit" data-cat="${c.id}">Stop the plan's EMIs after ${mlabel(x.end)}</button>` : ''}</div></div>`;
+  const rows = x.rows;
+  const chart = rows.length > 1 ? (() => {
+    const W = 520, H = 120, L = 6, R = 6, T = 10, B = 20, mx = Math.max(x.now, ...rows.map(r => r.bal)) || 1;
+    const px = i => L + i / (rows.length - 1) * (W - L - R), py = v => T + (1 - v / mx) * (H - T - B);
+    const pts = rows.map((r, i) => `${px(i).toFixed(1)},${py(r.bal).toFixed(1)}`).join(' ');
+    return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block" role="img" aria-label="Outstanding balance over time"><polygon points="${L},${py(0)} ${pts} ${px(rows.length - 1)},${py(0)}" fill="var(--accent)" opacity=".1"/><polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="2"/><line x1="${L}" x2="${W - R}" y1="${py(0)}" y2="${py(0)}" stroke="var(--line)"/><text x="${L}" y="${H - 5}" style="fill:var(--muted);font:10px var(--body)">${mshort(rows[0].m)}</text><text x="${W - R}" y="${H - 5}" text-anchor="end" style="fill:var(--muted);font:10px var(--body)">${mshort(rows[rows.length - 1].m)}</text></svg>`;
+  })() : '';
+  const shown = showSched ? rows : rows.slice(0, 6);
+  const table = rows.length ? `<div class="section-head" style="margin-top:14px"><h3>Repayment schedule</h3>${rows.length > 6 ? `<button class="btn small ghost" data-act="loanschedtoggle">${showSched ? 'Show less' : `Show all ${rows.length} months`}</button>` : ''}</div>
+    <div class="scroll" style="max-height:${showSched ? '420px' : 'none'};overflow:auto;border:1px solid var(--line);border-radius:8px;margin-top:6px"><table><thead><tr><th>Month</th><th class="n">Payment</th><th class="n">Interest</th><th class="n">Principal</th><th class="n">Balance</th></tr></thead><tbody>
+    ${shown.map(r => `<tr><td>${mlabel(r.m)}</td><td class="n">${inr(r.pay)}</td><td class="n dim">${inr(r.int)}</td><td class="n">${inr(r.prin)}</td><td class="n">${inr(r.bal)}</td></tr>`).join('')}</tbody></table></div>
+    <p class="hint" style="margin:8px 0 0">Uses the plan's payments (and logged actuals) while the plan runs, then assumes the last EMI continues. Estimates only; your lender's statement is the final word.</p>` : '';
+  return head + `<div class="lkgrid">${cards}</div>${warn ? `<div style="margin-top:12px">${warn}</div>` : ''}${chart ? `<div style="margin-top:12px">${chart}</div>` : ''}${table}`;
+}
+
+function loanModal(id) {
+  const c = S.categories[id]; if (!c) return;
+  const L = c.loan || {};
+  openModal(`<h2>${esc(c.name)}</h2>
+    <div class="seg" role="group" aria-label="Loan type"><button data-act="lkind" data-k="emi" aria-pressed="${L.kind !== 'interest'}">EMI loan</button><button data-act="lkind" data-k="interest" aria-pressed="${L.kind === 'interest'}">Interest only</button></div>
+    <div class="form">
+      <label class="f">Outstanding principal (₹)<input id="lm-out" inputmode="decimal" value="${L.outstanding ? (+L.outstanding).toLocaleString('en-IN') : ''}" placeholder="From your statement"></label>
+      <label class="f">Interest rate (% a year)<input id="lm-rate" inputmode="decimal" value="${L.rate || ''}" placeholder="e.g. 8.5"></label>
+      <label class="f">Balance date<input type="date" id="lm-asof" value="${esc(L.asOf || todayD)}"></label>
+      <label class="f" id="lm-mat-wrap" ${L.kind === 'interest' ? '' : 'hidden'}>Maturity (principal due)<input type="month" id="lm-mat" value="${esc(L.maturity || '')}"></label>
+    </div>
+    <input type="hidden" id="lm-kind" value="${L.kind === 'interest' ? 'interest' : 'emi'}">
+    <p class="hint" style="margin:0">The monthly payment comes from this row in the Plan tab. Change it there, or with “Edit plan row”.</p>
+    <div class="row" style="justify-content:space-between"><button class="btn ghost" data-act="editcat" data-cat="${c.id}">Edit plan row</button><div class="row"><button class="btn ghost" data-act="close">Cancel</button><button class="btn primary" data-act="saveloan" data-cat="${c.id}">Save</button></div></div>`);
 }
 
 function bizPerf(id) {
@@ -699,8 +831,8 @@ function entryModal(catId) {
     <div class="row" style="justify-content:flex-end"><button class="btn ghost" data-act="close">Cancel</button><button class="btn primary" data-act="saveentry">Save entry</button></div>`);
 }
 
-function catModal(id, presetBiz) {
-  const c = id ? S.categories[id] : presetBiz ? { name: '', type: 'income', group: 'Business', business: presetBiz, account: C.accs[0]?.id, amounts: {} } : { name: '', type: 'expense', group: 'Household', account: C.accs[0]?.id, amounts: {} };
+function catModal(id, presetBiz, presetGroup) {
+  const c = id ? S.categories[id] : presetGroup ? { name: '', type: 'expense', group: presetGroup, account: C.accs[0]?.id, amounts: {} } : presetBiz ? { name: '', type: 'income', group: 'Business', business: presetBiz, account: C.accs[0]?.id, amounts: {} } : { name: '', type: 'expense', group: 'Household', account: C.accs[0]?.id, amounts: {} };
   const owner = isBiz(c) ? c.business : '';
   const firstM = locked(C.cur) ? firstOpen() : C.cur;
   openModal(`<h2>${id ? 'Edit plan row' : 'New plan row'}</h2>
@@ -730,7 +862,8 @@ function confirmTwice(btn, key) {
 }
 
 document.addEventListener('click', async ev => {
-  const t = ev.target.closest('[data-tab],[data-act]'); if (!t) return;
+  const t = ev.target.closest('[data-tab],[data-act]');
+  if (!t) { const row = ev.target.closest('[data-loan]'); if (row && !ev.target.closest('input,button,select')) { selLoan = row.dataset.loan; showSched = false; loans._scroll = true; render(); } return; }
   if (t.dataset.tab) { tab = t.dataset.tab; try { history.replaceState(null, '', '#' + tab); } catch (e) {} render(); window.scrollTo(0, 0); return; }
   const a = t.dataset.act;
   if (a === 'scrim') { if (ev.target === t) closeModal(); return; }
@@ -738,6 +871,35 @@ document.addEventListener('click', async ev => {
   if (a === 'mprev') { selMonth = addM(selMonth, -1); return render(); }
   if (a === 'mnext') { selMonth = addM(selMonth, 1); return render(); }
   if (a === 'mnow') { selMonth = C.cur; return render(); }
+  if (a === 'loansched') { selLoan = t.dataset.cat; showSched = true; loans._scroll = true; return render(); }
+  if (a === 'loanschedtoggle') { showSched = !showSched; return render(); }
+  if (a === 'loanedit') return loanModal(t.dataset.cat);
+  if (a === 'newloan') return catModal(null, null, 'Loans & EMIs');
+  if (a === 'lkind') { $('#lm-kind').value = t.dataset.k; document.querySelectorAll('[data-act=lkind]').forEach(b => b.setAttribute('aria-pressed', b === t)); $('#lm-mat-wrap').hidden = t.dataset.k !== 'interest'; return; }
+  if (a === 'saveloan') {
+    const id = t.dataset.cat, raw = $('#lm-out').value.trim(), rr = $('#lm-rate').value.trim();
+    const outstanding = raw === '' ? null : num(raw), rate = rr === '' ? null : num(rr);
+    if (rate !== null && (rate < 0 || rate > 60)) return toast('Enter the yearly interest rate as a percentage, e.g. 8.5.');
+    const loan = { kind: $('#lm-kind').value, outstanding, rate, asOf: $('#lm-asof').value || todayD, maturity: $('#lm-mat').value || '' };
+    t.disabled = true;
+    if (await write(() => db.doc('categories/' + id).update({ loan }), 'Loan details saved')) { selLoan = id; closeModal(); render(); } else t.disabled = false;
+    return;
+  }
+  if (a === 'loanfit') {
+    const c = S.categories[t.dataset.cat]; if (!c) return;
+    const x = loanInfo(c), he = C.ms[C.ms.length - 1];
+    if (!x.end || !x.lastPlanM) return;
+    const amounts = { ...(c.amounts || {}) };
+    const finalPay = x.rows.length ? x.rows[x.rows.length - 1].pay : x.lastPay;
+    if (x.end > x.lastPlanM) {
+      for (const m of range(addM(x.lastPlanM, 1), x.end < he ? x.end : he)) if (!locked(m)) amounts[m] = Math.round(m === x.end ? finalPay : x.lastPay);
+    } else {
+      if (!locked(x.end)) amounts[x.end] = Math.round(finalPay);
+      for (const m of Object.keys(amounts)) if (m > x.end && !locked(m)) delete amounts[m];
+    }
+    const { id, ...body } = c; body.amounts = amounts;
+    return write(() => db.doc('categories/' + c.id).set(body), 'Plan updated to match the loan');
+  }
   if (a === 'reopen') {
     if (!confirmTwice(t, 'ro' + t.dataset.m)) return;
     const prev = addM(t.dataset.m, -1);
@@ -859,7 +1021,10 @@ document.addEventListener('click', async ev => {
   }
 });
 $('#fab').addEventListener('click', () => entryModal(null));
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('#modal').innerHTML) closeModal(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && $('#modal').innerHTML) closeModal();
+  if (e.key === 'Enter' && e.target.matches?.('[data-loan]')) { selLoan = e.target.dataset.loan; showSched = false; loans._scroll = true; render(); }
+});
 
 document.addEventListener('change', async ev => {
   const el = ev.target;
@@ -870,6 +1035,15 @@ document.addEventListener('change', async ev => {
   }
   if (el.id === 'c-owner' || el.id === 'c-type') { $('#c-group-wrap').hidden = !!$('#c-owner').value || $('#c-type').value === 'income'; return; }
   if (el.id === 'e-cat') { const c = S.categories[el.value]; if (c) { $('#e-acc').value = c.account; const p = planVal(c, ($('#e-date').value || todayD).slice(0, 7)); $('#e-amt').value = p ? p.toLocaleString('en-IN') : ''; } return; }
+  if (el.dataset.loanF) {
+    const c = S.categories[el.dataset.cat]; if (!c) return;
+    const f = el.dataset.loanF, raw = el.value.trim(), v = raw === '' ? null : num(raw);
+    if (f === 'rate' && v !== null && (v < 0 || v > 60)) { toast('Enter the yearly interest rate as a percentage, e.g. 8.5.'); el.value = c.loan?.rate || ''; return; }
+    if ((c.loan?.[f] ?? null) === v) return;
+    const patch = f === 'outstanding' ? { outstanding: v, asOf: todayD } : { rate: v };
+    await write(() => db.doc('categories/' + c.id).update({ loan: patch }), f === 'outstanding' ? 'Balance saved as of today' : 'Interest rate saved');
+    return;
+  }
   if (el.id === 'tr-from') { trFrom = el.value; el.blur(); return render(); }
   if (el.dataset.balAcc) {
     const m = el.dataset.m, acc = el.dataset.balAcc, raw = el.value.trim();
