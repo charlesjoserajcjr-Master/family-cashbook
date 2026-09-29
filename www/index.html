@@ -119,6 +119,18 @@ tr.tot td{font-weight:600;border-top:1px solid var(--line)}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 
 .monthbar{display:flex;align-items:center;gap:8px}
+input.balin{width:108px;text-align:right}
+@media (max-width:560px){
+  .trtable thead{display:none}
+  .trtable tr{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;padding:10px 12px;border-bottom:1px solid var(--line)}
+  .trtable tr.grp{display:block;padding:6px 12px}
+  .trtable td{border:0;padding:0;white-space:normal}
+  .trtable td:nth-child(3){grid-column:1/2;text-align:left}
+  .trtable td:nth-child(4){grid-column:1/-1}
+  .trtable td:nth-child(4) .row{justify-content:flex-start!important;flex-wrap:wrap!important}
+  .trtable td:nth-child(2)::before{content:"Plan ";color:var(--muted);font-size:12px}
+}
+input.balin:placeholder-shown{border-style:dashed}
 .monthbar .lbl{font-family:var(--display);font-weight:700;font-size:18px;min-width:108px;text-align:center}
 
 input,select,textarea{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:7px 9px;min-width:0}
@@ -205,8 +217,8 @@ const num = v => { const n = parseFloat(String(v).replace(/[₹,\s]/g, '')); ret
 const todayM = (() => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); })();
 const todayD = new Date().toISOString().slice(0, 10);
 
-const S = { settings: null, accounts: {}, categories: {}, transfers: {}, entries: {}, businesses: {}, ready: new Set() };
-let db = null, user = null, uid = null, canWrite = true, tab = 'overview', selMonth = null, planFrom = null;
+const S = { settings: null, accounts: {}, categories: {}, transfers: {}, entries: {}, businesses: {}, balances: {}, ready: new Set() };
+let db = null, user = null, uid = null, canWrite = true, tab = 'overview', selMonth = null, planFrom = null, trFrom = null;
 let pending = false, C = null;
 
 try { const t = location.hash.slice(1); if (['overview','month','plan','loans','business','transfers','setup'].includes(t)) tab = t; } catch (e) {}
@@ -232,6 +244,12 @@ function compute() {
   const act = {};
   for (const e of Object.values(S.entries)) { ((act[e.categoryId] ??= {})[e.month] ??= []).push(e); }
   const rows = {}, bal = {}, total = {}, below = {}, flow = {};
+  // Transfers: a logged actual (real date, accounts, amount) replaces the planned one, possibly in another month.
+  const trByMonth = {};
+  for (const [pm, d] of Object.entries(S.transfers)) for (const t of (d.items || [])) {
+    const a = t.actual, em = a?.date ? a.date.slice(0, 7) : pm;
+    (trByMonth[em] ??= []).push({ from: a?.from || t.from, to: a?.to || t.to, amount: +(a ? a.amount : t.amount) || 0 });
+  }
   accs.forEach(a => { rows[a.id] = {}; bal[a.id] = +a.opening || 0; });
   for (const m of ms) {
     const r = {}; accs.forEach(a => r[a.id] = { begin: bal[a.id], rec: 0, pay: 0, tin: 0, tout: 0 });
@@ -241,10 +259,16 @@ function compute() {
       if (list && list.length) list.forEach(e => apply(e.accountId || c.account, +e.amount || 0));
       else { const v = +(c.amounts?.[m]) || 0; if (v) apply(c.account, v); }
     }
-    for (const t of (S.transfers[m]?.items || [])) { if (r[t.from]) r[t.from].tout += +t.amount || 0; if (r[t.to]) r[t.to].tin += +t.amount || 0; }
-    let tot = 0, inc = 0, exp = 0; const b = [];
-    for (const a of accs) { const x = r[a.id]; x.end = x.begin + x.rec + x.tin - x.pay - x.tout; bal[a.id] = x.end; tot += x.end; inc += x.rec; exp += x.pay; if (x.end < (+a.min || 0)) b.push(a.id); rows[a.id][m] = x; }
-    total[m] = tot; below[m] = b; flow[m] = { inc, exp };
+    for (const t of (trByMonth[m] || [])) { if (r[t.from]) r[t.from].tout += t.amount; if (r[t.to]) r[t.to].tin += t.amount; }
+    let tot = 0, inc = 0, exp = 0, diff = 0, counted = 0; const b = [];
+    const bank = S.balances[m]?.values || {};
+    for (const a of accs) {
+      const x = r[a.id]; x.calc = x.begin + x.rec + x.tin - x.pay - x.tout; x.end = x.calc;
+      const v = bank[a.id];
+      if (v !== null && v !== undefined && v !== '' && isFinite(+v)) { x.actual = +v; x.diff = x.actual - x.calc; x.end = x.actual; diff += x.diff; counted++; }
+      bal[a.id] = x.end; tot += x.end; inc += x.rec; exp += x.pay; if (x.end < (+a.min || 0)) b.push(a.id); rows[a.id][m] = x;
+    }
+    total[m] = tot; below[m] = b; flow[m] = { inc, exp, diff, counted };
   }
   const cur = ms.length ? (todayM < ms[0] ? ms[0] : todayM > ms[ms.length - 1] ? ms[ms.length - 1] : todayM) : todayM;
   return { ms, accs, rows, total, below, flow, act, cur };
@@ -327,7 +351,12 @@ function overview() {
         <span class="bal">${inr(x.end)}</span>${spark(a.id)}<span class="meta">Minimum ${inr(+a.min || 0)}${a.notes ? ' · ' + esc(a.notes) : ''}</span></div>`; }).join('')}</div>
     </div>
     <div class="section" style="margin:0">
-      <div class="section-head"><h2>Minimum-balance alerts</h2></div>
+      <div class="section-head"><h2>Month-end check</h2></div>
+      ${(() => { const lm = addM(cur, -1); if (!C.ms.includes(lm)) return ''; const f = C.flow[lm]; const n = C.accs.length;
+        return f.counted < n
+          ? `<div class="alert" style="background:var(--warn-soft)"><span class="ic" style="background:var(--warn)">?</span><div>${f.counted ? `${n - f.counted} of ${n} accounts` : 'No accounts'} have a bank balance for the end of ${mlabel(lm)} yet. Entering them catches spending the app missed.<div style="margin-top:6px"><button class="btn small" data-act="gomonth" data-m="${lm}">Enter ${MN[+lm.slice(5) - 1]} balances</button></div></div></div>`
+          : `<div class="alert ${f.diff < 0 ? '' : 'okay'}"><span class="ic">${f.diff < 0 ? '!' : '✓'}</span><div>${f.diff < 0 ? `${inr(-f.diff)} of spending in ${mlabel(lm)} wasn't recorded in the app.` : f.diff > 0 ? `Accounts ended ${mlabel(lm)} ${inr(f.diff)} higher than expected.` : `Every account matched the bank at the end of ${mlabel(lm)}.`} <button class="btn small ghost" data-act="gomonth" data-m="${lm}">See details</button></div></div>`; })()}
+      <div class="section-head" style="margin-top:10px"><h2>Minimum-balance alerts</h2></div>
       <div class="alerts">${alerts.length ? alerts.map(({ a, ms }) => { const worst = ms.reduce((w, m) => C.rows[a.id][m].end < C.rows[a.id][w].end ? m : w, ms[0]); const gap = (+a.min || 0) - C.rows[a.id][worst].end; return `
         <div class="alert"><span class="ic">!</span><div><b>${esc(a.name)}</b> dips below its ${inr(+a.min || 0)} minimum in ${ms.length} month${ms.length > 1 ? 's' : ''}, first in ${mlabel(ms[0])}.<br><span class="dim">Worst: ${mlabel(worst)}, short by ${inr(gap)}. Plan a transfer into this account.</span></div></div>`; }).join('')
         : `<div class="alert okay"><span class="ic">✓</span><div>Every account stays above its minimum for the rest of the plan.</div></div>`}</div>
@@ -413,18 +442,22 @@ function month() {
   const trs = S.transfers[m]?.items || [];
   $('#view').innerHTML = `
   <div class="section"><div class="section-head">${monthBar()}<span class="hint">Plan comes from the Plan tab. Logging an actual replaces the planned figure for that category this month.</span></div></div>
-  <div class="section"><h2>Account balances</h2>
-    <div class="panel scroll"><table><thead><tr><th>Account</th><th class="n">Opening</th><th class="n">Money in</th><th class="n">Transfers in</th><th class="n">Money out</th><th class="n">Transfers out</th><th class="n">Closing</th><th class="n">Minimum</th><th>Status</th></tr></thead><tbody>
-    ${C.accs.map(a => { const x = C.rows[a.id][m]; return `<tr><td>${esc(a.name)}</td><td class="n">${inr(x.begin)}</td><td class="n">${inr(x.rec)}</td><td class="n dim">${inr(x.tin)}</td><td class="n">${inr(x.pay)}</td><td class="n dim">${inr(x.tout)}</td><td class="n"><b>${inr(x.end)}</b></td><td class="n dim">${inr(+a.min || 0)}</td><td>${status(x.end, +a.min || 0)}</td></tr>`; }).join('')}
-    <tr class="tot"><td>All accounts</td><td class="n">${inr(C.accs.reduce((s, a) => s + C.rows[a.id][m].begin, 0))}</td><td class="n">${inr(C.flow[m].inc)}</td><td></td><td class="n">${inr(C.flow[m].exp)}</td><td></td><td class="n">${inr(C.total[m])}</td><td></td><td></td></tr>
-    </tbody></table></div></div>
+  <div class="section"><div class="section-head"><h2>Account balances</h2><span class="hint">At month end, type each account's real balance from your bank. The difference is spending or income the app didn't capture. Later months then start from your real balance.</span></div>
+    <div class="panel scroll"><table><thead><tr><th>Account</th><th class="n">Expected</th><th class="n">Bank balance</th><th class="n">Difference</th><th>Status</th><th class="n">Opening</th><th class="n">Money in</th><th class="n">Transfers in</th><th class="n">Money out</th><th class="n">Transfers out</th></tr></thead><tbody>
+    ${C.accs.map(a => { const x = C.rows[a.id][m]; const has = x.actual !== undefined; return `<tr><td>${esc(a.name)}</td><td class="n">${has ? inr(x.calc) : `<b>${inr(x.calc)}</b>`}</td>
+      <td class="n"><input class="balin" id="bal-${a.id}-${m}" data-bal-acc="${a.id}" data-m="${m}" inputmode="decimal" placeholder="Enter" value="${has ? x.actual.toLocaleString('en-IN') : ''}" ${canWrite ? '' : 'readonly'} aria-label="${esc(a.name)} bank balance ${mlabel(m)}"></td>
+      <td class="n ${!has || !x.diff ? 'dim' : x.diff < 0 ? 'neg' : 'pos'}">${has ? (x.diff > 0 ? '+' : '') + inr(x.diff) : '—'}</td><td>${status(x.end, +a.min || 0)}</td>
+      <td class="n">${inr(x.begin)}</td><td class="n">${inr(x.rec)}</td><td class="n dim">${inr(x.tin)}</td><td class="n">${inr(x.pay)}</td><td class="n dim">${inr(x.tout)}</td></tr>`; }).join('')}
+    <tr class="tot"><td>All accounts</td><td class="n">${inr(C.accs.reduce((s, a) => s + C.rows[a.id][m].calc, 0))}</td><td class="n">${C.flow[m].counted ? inr(C.total[m]) : ''}</td><td class="n ${C.flow[m].diff < 0 ? 'neg' : C.flow[m].diff > 0 ? 'pos' : 'dim'}">${C.flow[m].counted ? (C.flow[m].diff > 0 ? '+' : '') + inr(C.flow[m].diff) : ''}</td><td></td><td class="n">${inr(C.accs.reduce((s, a) => s + C.rows[a.id][m].begin, 0))}</td><td class="n">${inr(C.flow[m].inc)}</td><td></td><td class="n">${inr(C.flow[m].exp)}</td><td></td></tr>
+    </tbody></table></div>
+    ${C.flow[m].counted ? `<p class="hint" style="margin:0">${C.flow[m].diff < 0 ? `${inr(-C.flow[m].diff)} left your accounts in ${mlabel(m)} without being logged (miscellaneous spending, charges, or entries not yet added).` : C.flow[m].diff > 0 ? `${inr(C.flow[m].diff)} more than expected is in your accounts: income not logged, or a planned payment that didn't happen.` : 'Bank balances match the app exactly.'} Accounts without a bank balance still use the expected figure.</p>` : ''}</div>
   <div class="section grid2" style="align-items:start">
     <div class="section" style="margin:0"><h2>Money out</h2>
       <div class="panel scroll"><table><thead><tr><th>Category</th><th class="n">Plan</th><th class="n">Actual</th><th class="n">Diff</th><th></th></tr></thead><tbody>${exp.html}<tr class="tot"><td>Total</td><td class="n">${inr(exp.tp)}</td><td class="n">${inr(exp.ta)}</td><td></td><td></td></tr></tbody></table></div></div>
     <div class="section" style="margin:0"><h2>Money in</h2>
       <div class="panel scroll"><table><thead><tr><th>Category</th><th class="n">Plan</th><th class="n">Actual</th><th class="n">Diff</th><th></th></tr></thead><tbody>${inc.html}<tr class="tot"><td>Total</td><td class="n">${inr(inc.tp)}</td><td class="n">${inr(inc.ta)}</td><td></td><td></td></tr></tbody></table></div>
       <h2 style="margin-top:10px">Transfers</h2>
-      <div class="panel scroll"><table><tbody>${trs.length ? trs.map(t => `<tr><td>${esc(accName(t.from))} → ${esc(accName(t.to))}<div class="dim" style="font-size:12px">${esc(t.ref || '')}</div></td><td class="n">${inr(+t.amount || 0)}</td></tr>`).join('') : `<tr><td class="dim">No transfers this month.</td></tr>`}</tbody></table></div>
+      <div class="panel scroll"><table class="trtable"><thead><tr><th>Transfer</th><th class="n">Plan</th><th class="n">Actual</th><th></th></tr></thead><tbody>${trs.length ? trs.map(t => trRow(m, t, false)).join('') : `<tr><td colspan="4" class="dim">No transfers planned this month.</td></tr>`}</tbody></table></div>
       <h2 style="margin-top:10px">Entries logged by the family</h2>
       <div class="panel scroll"><table><tbody>${ents.length ? ents.map(e => { const c = S.categories[e.categoryId]; return `<tr><td>${esc(c ? catLabel(c) : 'Deleted category')}<div class="dim" style="font-size:12px">${esc(e.date || '')} · ${esc(accName(e.accountId))}${e.note ? ' · ' + esc(e.note) : ''}</div><div style="font-size:12px"><span class="person" data-uid="${esc(e.by || '')}"></span></div></td><td class="n">${inr(+e.amount || 0)}${canWrite ? `<div><button class="btn small ghost danger" data-act="delentry" data-id="${e.id}">Delete</button></div>` : ''}</td></tr>`; }).join('') : `<tr><td class="dim">No actuals logged for ${mlabel(m)} yet. Use “+ Add entry” when a salary lands or a bill is paid.</td></tr>`}</tbody></table></div>
     </div>
@@ -547,9 +580,13 @@ function transfers() {
   const accs = C.accs;
   const opts = sel => accs.map(a => `<option value="${a.id}" ${a.id === sel ? 'selected' : ''}>${esc(a.name)}</option>`).join('');
   const mopts = sel => C.ms.map(m => `<option value="${m}" ${m === sel ? 'selected' : ''}>${mlabel(m)}</option>`).join('');
-  const list = C.ms.filter(m => (S.transfers[m]?.items || []).length && m >= addM(C.cur, -1));
+  if (!trFrom || !C.ms.includes(trFrom)) trFrom = C.ms.includes(addM(C.cur, -2)) ? addM(C.cur, -2) : C.ms[0];
+  const list = C.ms.filter(m => (S.transfers[m]?.items || []).length && m >= trFrom);
+  const pendingPast = C.ms.filter(m => m < C.cur).reduce((n, m) => n + (S.transfers[m]?.items || []).filter(t => !t.actual).length, 0);
   $('#view').innerHTML = `
-  <div class="section"><div class="section-head"><div><h2>Transfers between accounts</h2><div class="hint">A transfer moves money between your own accounts, so family cash stays the same. Use it to keep each account above its minimum.</div></div></div>
+  <div class="section"><div class="section-head"><div><h2>Transfers between accounts</h2><div class="hint">A transfer moves money between your own accounts, so family cash stays the same. When you actually move the money, tap <b>Log actual</b> and record the real amount, date and accounts; it replaces the plan.</div></div>
+    <label class="f" style="min-width:150px">Show from<select id="tr-from">${mopts(trFrom)}</select></label></div></div>
+  ${pendingPast ? `<div class="alert" style="margin-top:12px"><span class="ic">!</span><div>${pendingPast} planned transfer${pendingPast > 1 ? 's' : ''} from past months ${pendingPast > 1 ? 'have' : 'has'} no actual logged. Log what really happened, or delete ${pendingPast > 1 ? 'them' : 'it'} if the money never moved.</div></div>` : ''}
   ${canWrite ? `<div class="panel pad"><div class="form">
     <label class="f">From<select id="t-from">${opts(accs[0]?.id)}</select></label>
     <label class="f">To<select id="t-to">${opts(accs[accs.length - 1]?.id)}</select></label>
@@ -559,10 +596,47 @@ function transfers() {
     <label class="f">Repeat monthly until<select id="t-until"><option value="">Just this month</option>${C.ms.map(m => `<option value="${m}">${mlabel(m)}</option>`).join('')}</select></label>
     <button class="btn primary" data-act="addtr">Add transfer</button>
   </div></div>` : ''}
-  <div class="panel scroll"><table><thead><tr><th>Month</th><th>From</th><th>To</th><th class="n">Amount</th><th>Reference</th><th></th></tr></thead><tbody>
-  ${list.map(m => (S.transfers[m].items).map((t, i) => `<tr><td>${i ? '' : mlabel(m)}</td><td>${esc(accName(t.from))}</td><td>${esc(accName(t.to))}</td><td class="n">${inr(+t.amount || 0)}</td><td>${esc(t.ref || '')}</td><td class="n">${canWrite ? `<button class="btn small ghost danger" data-act="deltr" data-m="${m}" data-id="${esc(t.id)}">Delete</button>` : ''}</td></tr>`).join('')).join('') || `<tr><td colspan="6" class="dim">No transfers planned from ${mlabel(C.cur)} on.</td></tr>`}
+  <div class="panel scroll" style="margin-top:12px"><table class="trtable"><thead><tr><th>Transfer</th><th class="n">Plan</th><th class="n">Actual</th><th></th></tr></thead><tbody>
+  ${list.map(m => `<tr class="grp"><td colspan="4">${mlabel(m)}</td></tr>` + S.transfers[m].items.map(t => trRow(m, t, true)).join('')).join('') || `<tr><td colspan="4" class="dim">No transfers from ${mlabel(trFrom)} on.</td></tr>`}
   </tbody></table></div></div>`;
 }
+
+function trRow(m, t, full) {
+  const a = t.actual;
+  const moved = a && (a.from !== t.from || a.to !== t.to);
+  const pill = a ? `<span class="pill act">${inr(+a.amount || 0)}</span><div class="dim" style="font-size:12px">${esc(a.date || '')}${moved ? ' · ' + esc(accName(a.from)) + ' → ' + esc(accName(a.to)) : ''}</div>`
+    : m < C.cur ? '<span class="pill low">Not logged</span>' : '<span class="dim">planned</span>';
+  const acts = canWrite ? `<div class="row" style="justify-content:flex-end;flex-wrap:nowrap"><button class="btn small" data-act="trlog" data-m="${m}" data-id="${esc(t.id)}">${a ? 'Edit actual' : 'Log actual'}</button>${full ? `<button class="btn small ghost" data-act="trplan" data-m="${m}" data-id="${esc(t.id)}">Edit plan</button><button class="btn small ghost danger" data-act="deltr" data-m="${m}" data-id="${esc(t.id)}">Delete</button>` : ''}</div>` : '';
+  return `<tr><td>${esc(accName(t.from))} → ${esc(accName(t.to))}<div class="dim" style="font-size:12px">${esc(t.ref || '')}</div></td><td class="n ${a ? 'dim' : ''}">${inr(+t.amount || 0)}</td><td class="n">${pill}</td><td class="n">${acts}</td></tr>`;
+}
+
+function trModal(m, id, mode) {
+  const t = (S.transfers[m]?.items || []).find(x => x.id === id); if (!t) return toast('That transfer no longer exists.');
+  const opts = sel => C.accs.map(a => `<option value="${a.id}" ${a.id === sel ? 'selected' : ''}>${esc(a.name)}</option>`).join('');
+  if (mode === 'plan') {
+    openModal(`<h2>Edit planned transfer</h2><div class="form">
+      <label class="f">From<select id="tp-from">${opts(t.from)}</select></label>
+      <label class="f">To<select id="tp-to">${opts(t.to)}</select></label>
+      <label class="f">Amount (₹)<input id="tp-amt" inputmode="decimal" value="${(+t.amount || 0).toLocaleString('en-IN')}"></label>
+      <label class="f">Month<select id="tp-m">${C.ms.map(x => `<option value="${x}" ${x === m ? 'selected' : ''}>${mlabel(x)}</option>`).join('')}</select></label>
+      <label class="f full">Reference<input id="tp-ref" value="${esc(t.ref || '')}"></label></div>
+      <div class="row" style="justify-content:flex-end"><button class="btn ghost" data-act="close">Cancel</button><button class="btn primary" data-act="savetrplan" data-m="${m}" data-id="${esc(id)}">Save plan</button></div>`);
+    return;
+  }
+  const a = t.actual || {};
+  const date = a.date || (m === todayM ? todayD : m + '-01');
+  openModal(`<h2>${t.actual ? 'Edit actual transfer' : 'Log actual transfer'}</h2>
+    <p class="hint" style="margin:0">Planned: ${inr(+t.amount || 0)} from ${esc(accName(t.from))} to ${esc(accName(t.to))} in ${mlabel(m)}. Record what really happened.</p>
+    <div class="form">
+      <label class="f">From<select id="ta-from">${opts(a.from || t.from)}</select></label>
+      <label class="f">To<select id="ta-to">${opts(a.to || t.to)}</select></label>
+      <label class="f">Amount (₹)<input id="ta-amt" inputmode="decimal" value="${(+(a.amount ?? t.amount) || 0).toLocaleString('en-IN')}"></label>
+      <label class="f">Date<input type="date" id="ta-date" value="${date}"></label>
+      <label class="f full">Note<input id="ta-note" value="${esc(a.note || '')}" placeholder="Optional, e.g. sent via NEFT"></label>
+    </div>
+    <div class="row" style="justify-content:space-between">${t.actual ? `<button class="btn ghost danger" data-act="cleartra" data-m="${m}" data-id="${esc(id)}">Remove actual</button>` : '<span></span>'}<div class="row"><button class="btn ghost" data-act="close">Cancel</button><button class="btn primary" data-act="savetra" data-m="${m}" data-id="${esc(id)}">Save actual</button></div></div>`);
+}
+async function saveTransfers(m, items, msg) { return write(() => db.doc('transfers/' + m).set({ month: m, items }), msg); }
 
 function setup() {
   const st = S.settings;
@@ -650,6 +724,7 @@ document.addEventListener('click', async ev => {
   if (a === 'mprev') { selMonth = addM(selMonth, -1); return render(); }
   if (a === 'mnext') { selMonth = addM(selMonth, 1); return render(); }
   if (a === 'mnow') { selMonth = C.cur; return render(); }
+  if (a === 'gomonth') { selMonth = t.dataset.m; tab = 'month'; render(); window.scrollTo(0, 0); return; }
   if (a === 'pprev') { planFrom = addM(planFrom, -12); if (planFrom < C.ms[0]) planFrom = C.ms[0]; return render(); }
   if (a === 'pnext') { planFrom = addM(planFrom, 12); return render(); }
   if (a === 'log') return entryModal(t.dataset.cat);
@@ -715,6 +790,39 @@ document.addEventListener('click', async ev => {
     t.disabled = false; if (ok) { toast('Transfer added'); $('#t-amt').value = ''; }
     return;
   }
+  if (a === 'trlog') return trModal(t.dataset.m, t.dataset.id, 'actual');
+  if (a === 'trplan') return trModal(t.dataset.m, t.dataset.id, 'plan');
+  if (a === 'savetra' || a === 'cleartra') {
+    const m = t.dataset.m, id = t.dataset.id;
+    let actual = null;
+    if (a === 'savetra') {
+      const from = $('#ta-from').value, to = $('#ta-to').value, amount = num($('#ta-amt').value), date = $('#ta-date').value;
+      if (from === to) return toast('Pick two different accounts.');
+      if (!amount) return toast('Enter the amount you actually moved.');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return toast('Pick the date of the transfer.');
+      actual = { from, to, amount, date, note: $('#ta-note').value.trim(), by: uid || '', at: new Date().toISOString() };
+    } else if (!confirmTwice(t, 'ta' + id)) return;
+    const items = (S.transfers[m]?.items || []).map(x => { if (x.id !== id) return x; const y = { ...x }; if (actual) y.actual = actual; else delete y.actual; return y; });
+    t.disabled = true;
+    if (await saveTransfers(m, items, actual ? 'Actual transfer saved' : 'Actual removed')) closeModal(); else t.disabled = false;
+    return;
+  }
+  if (a === 'savetrplan') {
+    const m = t.dataset.m, id = t.dataset.id, nm = $('#tp-m').value;
+    const from = $('#tp-from').value, to = $('#tp-to').value, amount = num($('#tp-amt').value), ref = $('#tp-ref').value.trim();
+    if (from === to) return toast('Pick two different accounts.');
+    if (!amount) return toast('Enter an amount above zero.');
+    const old = (S.transfers[m]?.items || []).find(x => x.id === id); if (!old) return closeModal();
+    const upd = { ...old, from, to, amount, ref };
+    t.disabled = true; let ok;
+    if (nm === m) ok = await saveTransfers(m, S.transfers[m].items.map(x => x.id === id ? upd : x), 'Plan updated');
+    else {
+      ok = await saveTransfers(nm, [...(S.transfers[nm]?.items || []), upd]);
+      if (ok) ok = await saveTransfers(m, S.transfers[m].items.filter(x => x.id !== id), 'Moved to ' + mlabel(nm));
+    }
+    if (ok) closeModal(); else t.disabled = false;
+    return;
+  }
   if (a === 'deltr') {
     if (!confirmTwice(t, 't' + t.dataset.id)) return;
     const m = t.dataset.m; const items = (S.transfers[m]?.items || []).filter(x => x.id !== t.dataset.id);
@@ -740,6 +848,17 @@ document.addEventListener('change', async ev => {
   }
   if (el.id === 'c-owner' || el.id === 'c-type') { $('#c-group-wrap').hidden = !!$('#c-owner').value || $('#c-type').value === 'income'; return; }
   if (el.id === 'e-cat') { const c = S.categories[el.value]; if (c) { $('#e-acc').value = c.account; const p = planVal(c, ($('#e-date').value || todayD).slice(0, 7)); $('#e-amt').value = p ? p.toLocaleString('en-IN') : ''; } return; }
+  if (el.id === 'tr-from') { trFrom = el.value; el.blur(); return render(); }
+  if (el.dataset.balAcc) {
+    const m = el.dataset.m, acc = el.dataset.balAcc, raw = el.value.trim();
+    const v = raw === '' ? null : num(raw);
+    const cur = S.balances[m]?.values?.[acc];
+    if ((cur ?? null) === v) return;
+    if (v !== null) el.value = v.toLocaleString('en-IN');
+    const ref = db.doc('balances/' + m);
+    await write(() => S.balances[m] ? ref.update({ values: { [acc]: v }, updatedBy: uid || '', updatedAt: new Date().toISOString() }) : ref.set({ month: m, values: { [acc]: v }, updatedBy: uid || '', updatedAt: new Date().toISOString() }), v === null ? 'Bank balance cleared' : 'Bank balance saved');
+    return;
+  }
   if (el.classList.contains('cell')) {
     const c = S.categories[el.dataset.cat]; if (!c) return; const v = num(el.value);
     if (v === planVal(c, el.dataset.m)) return;
@@ -777,6 +896,7 @@ window.addEventListener('resize', () => { if (tab === 'overview' && C) drawChart
     db.collection(col).onSnapshot(q => { const o = {}; q.docs.forEach(d => o[d.id] = { ...d.data(), id: d.id }); S[col] = o; S.ready.add(col); schedule(); }, onErr);
   }
   db.collection('transfers').onSnapshot(q => { const o = {}; q.docs.forEach(d => { const x = d.data(); o[x.month || d.id] = x; }); S.transfers = o; schedule(); }, onErr);
+  db.collection('balances').onSnapshot(q => { const o = {}; q.docs.forEach(d => { const x = d.data(); o[x.month || d.id] = x; }); S.balances = o; schedule(); }, onErr);
   render();
 })();
 })();
