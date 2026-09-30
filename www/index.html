@@ -173,9 +173,9 @@ input.loanin{width:112px;text-align:right}
   .loantable tr.loanrow.sel{background:var(--accent-soft);box-shadow:inset 3px 0 0 var(--accent)}
   .loantable tr.loanrow td:nth-child(n+2):nth-child(-n+5)::before{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px}
   .loantable tr.loanrow td:nth-child(2)::before{content:"Outstanding"}
-  .loantable tr.loanrow td:nth-child(3)::before{content:"Scheduled payment"}
+  .loantable tr.loanrow td:nth-child(3)::before{content:"EMI"}
   .loantable tr.loanrow td:nth-child(4)::before{content:"Interest % a year"}
-  .loantable tr.loanrow td:nth-child(5)::before{content:"Ends"}
+  .loantable tr.loanrow td:nth-child(5)::before{content:"Balance this month"}
   .loantable input.loanin{width:100%!important;text-align:left}
 }
 input.loanin:placeholder-shown{border-style:dashed}
@@ -185,6 +185,9 @@ input.loanin:placeholder-shown{border-style:dashed}
 .lk .l{font-size:12px;color:var(--ink2)}
 .lk .v{font-family:var(--display);font-weight:700;font-size:18px}
 .lk .s{font-size:11.5px;color:var(--muted)}
+.lk-hero{background:var(--accent-soft);border-color:transparent}
+.schedtable th{position:sticky;top:0;z-index:1}
+.schedtable tr.curm td{background:var(--accent-soft)}
 input.balin{width:108px;text-align:right}
 @media (max-width:560px){
   .trtable thead{display:none}
@@ -252,6 +255,7 @@ label.f{display:grid;gap:4px;font-size:12.5px;color:var(--ink2)}
     <button role="tab" data-tab="month" aria-selected="false">Month</button>
     <button role="tab" data-tab="plan" aria-selected="false">Plan</button>
     <button role="tab" data-tab="loans" aria-selected="false">Loans &amp; EMIs</button>
+    <button role="tab" data-tab="networth" aria-selected="false">Net worth</button>
     <button role="tab" data-tab="business" aria-selected="false">Businesses</button>
     <button role="tab" data-tab="transactions" aria-selected="false">Transactions</button>
     <button role="tab" data-tab="setup" aria-selected="false">Accounts &amp; setup</button>
@@ -283,14 +287,14 @@ const num = v => { const n = parseFloat(String(v).replace(/[₹,\s]/g, '')); ret
 const todayM = (() => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); })();
 const todayD = new Date().toISOString().slice(0, 10);
 
-const S = { settings: null, accounts: {}, categories: {}, transfers: {}, entries: {}, businesses: {}, balances: {}, ready: new Set() };
+const S = { settings: null, accounts: {}, categories: {}, transfers: {}, entries: {}, businesses: {}, balances: {}, holdings: {}, ready: new Set() };
 let db = null, user = null, uid = null, canWrite = true, tab = 'overview', selMonth = null, planFrom = null, trFrom = null;
 let pending = false, C = null, isAdmin = true;
 const closedThrough = () => S.settings?.closedThrough || '';
 const locked = m => !!closedThrough() && m <= closedThrough();
 const firstOpen = () => closedThrough() ? addM(closedThrough(), 1) : (S.settings?.start || todayM);
 
-try { const t = location.hash.slice(1); if (t === 'transfers') tab = 'transactions'; else if (['overview','month','plan','loans','business','transactions','setup'].includes(t)) tab = t; } catch (e) {}
+try { const t = location.hash.slice(1); if (t === 'transfers') tab = 'transactions'; else if (['overview','month','plan','loans','networth','business','transactions','setup'].includes(t)) tab = t; } catch (e) {}
 
 // ---------- engine ----------
 const accList = () => Object.values(S.accounts).sort((a, b) => (a.order ?? 99) - (b.order ?? 99) || String(a.name).localeCompare(b.name));
@@ -343,7 +347,7 @@ function compute() {
   const cur = ms.length ? (todayM < ms[0] ? ms[0] : todayM > ms[ms.length - 1] ? ms[ms.length - 1] : todayM) : todayM;
   // Once the current month is closed, "now" moves to the first open month.
   const curOpen = locked(cur) && ms.includes(firstOpen()) ? firstOpen() : cur;
-  return { ms, accs, rows, total, below, flow, act, cur: curOpen };
+  return { ms, accs, rows, total, below, flow, act, cur: curOpen, loanCache: {} };
 }
 const planVal = (c, m) => +(c.amounts?.[m]) || 0;
 const eff = (c, m) => actualVal(c, m) ?? (locked(m) ? 0 : planVal(c, m));
@@ -401,7 +405,7 @@ function render() {
   if (!st) return;
   if (tab === 'transfers') tab = 'transactions';
   C.minWarn = watchMinimums();
-  ({ overview, month, plan, loans, business, transactions, setup })[tab]();
+  ({ overview, month, plan, loans, networth, business, transactions, setup })[tab]();
 }
 
 function status(end, min) { return end < min ? `<span class="pill low">Below min</span>` : `<span class="pill ok">OK</span>`; }
@@ -443,7 +447,8 @@ function overview() {
         <span class="bal">${inr(x.end)}</span>${spark(a.id)}<span class="meta">Minimum ${inr(+a.min || 0)}${a.notes ? ' · ' + esc(a.notes) : ''}</span></div>`; }).join('')}</div>
     </div>
     <div class="section" style="margin:0">
-      <div class="section-head"><h2>Month-end check</h2></div>
+      ${(() => { const n = netWorthAt(cur); return `<div class="section-head"><h2>Net worth</h2><button class="btn small ghost" data-tab="networth">Open ›</button></div><div class="panel pad" style="display:flex;justify-content:space-between;gap:12px;align-items:baseline;flex-wrap:wrap"><span class="hint" style="margin:0">End of ${mlabel(cur)}: assets ${short(n.totalA)}, liabilities ${short(n.totalL)}</span><b style="font-family:var(--display);font-size:22px">${inr(n.net)}</b></div>`; })()}
+      <div class="section-head" style="margin-top:10px"><h2>Month-end check</h2></div>
       ${(() => { const lm = addM(cur, -1); if (!C.ms.includes(lm)) return ''; const f = C.flow[lm]; const n = C.accs.length;
         if (locked(lm) && !f.confirmed) return `<div class="alert okay"><span class="ic">✓</span><div>${mlabel(lm)} is closed with your bank balances. Tracking runs from ${mlabel(addM(lm, 1))}: log entries and transfers as they happen, then enter bank balances at month end.</div></div>`;
         return f.counted < n
@@ -592,47 +597,74 @@ function plan() {
 }
 
 const tenureTxt = n => { if (n == null) return '—'; const y = Math.floor(n / 12), mo = n % 12; return (y ? y + (y > 1 ? ' yrs' : ' yr') : '') + (y && mo ? ' ' : '') + (mo || !y ? mo + (mo === 1 ? ' mo' : ' mos') : ''); };
+const monthsBetween = (a, b) => (+b.slice(0, 4) - +a.slice(0, 4)) * 12 + (+b.slice(5, 7) - +a.slice(5, 7));
 
+// One loan's full picture: the balance after every month's payment from the balance date until it is repaid.
+// Payment each month = a logged actual if there is one, else the loan's EMI, else the plan's payment.
 function loanInfo(c) {
+  if (C.loanCache && C.loanCache[c.id]) return C.loanCache[c.id];
   const L = c.loan || {}, cur = C.cur;
   const planned = C.ms.filter(m => planVal(c, m) > 0);
   const lastPlanM = planned[planned.length - 1] || null;
   const lastPay = lastPlanM ? planVal(c, lastPlanM) : 0;
-  const pay = m => (lastPlanM && m <= lastPlanM) ? eff(c, m) : lastPay; // after the plan ends, assume the last EMI continues
-  const sched = eff(c, cur) || C.ms.filter(m => m >= cur).map(m => planVal(c, m)).find(v => v > 0) || lastPay || 0;
+  const emi = +L.emi || 0;
+  const pay = m => { const a = actualVal(c, m); if (a != null) return a; if (emi) return emi; return (lastPlanM && m <= lastPlanM) ? eff(c, m) : lastPay; };
+  const sched = emi || eff(c, cur) || C.ms.filter(m => m >= cur).map(m => planVal(c, m)).find(v => v > 0) || lastPay || 0;
   const kind = L.kind === 'interest' ? 'interest' : 'emi';
   const has = L.outstanding !== null && L.outstanding !== undefined && L.outstanding !== '' && +L.outstanding > 0;
   const rate = +L.rate || 0, r = rate / 1200;
-  const o = { c, L, has, kind, rate, sched, lastPlanM, lastPay, asOf: L.asOf || '', rows: [], now: null, end: null, months: null, totInt: null, stuck: false };
+  const o = { c, L, has, kind, rate, emi, sched, lastPlanM, lastPay, asOf: L.asOf || '', rows: [], series: {}, now: null, end: null, months: null, totInt: null, stuck: false };
+  if (C.loanCache) C.loanCache[c.id] = o;
   if (!has) return o;
   const asOfM = (L.asOf || cur).slice(0, 7);
   const start = addM(asOfM, 1) > cur ? addM(asOfM, 1) : cur;
-  let B = +L.outstanding;
-  if (kind === 'emi') for (let m = addM(asOfM, 1); m < start; m = addM(m, 1)) B = Math.max(0, B + B * r - pay(m));
-  o.now = B; o.start = start;
+  let B = +L.outstanding; o.series[asOfM] = B; o.asOfM = asOfM;
+  if (kind === 'emi') for (let m = addM(asOfM, 1); m < start; m = addM(m, 1)) { B = Math.max(0, B + B * r - pay(m)); o.series[m] = B; }
+  o.start = start; o.openBal = B;
   if (kind === 'interest') {
     const mat = L.maturity || '';
     const n = mat && mat >= start ? range(start, mat).length : null;
     const i = B * r;
-    if (n) for (let k = 0, m = start; k < n; k++, m = addM(m, 1)) o.rows.push({ m, pay: i + (k === n - 1 ? B : 0), int: i, prin: k === n - 1 ? B : 0, bal: k === n - 1 ? 0 : B });
+    if (n) for (let k = 0, m = start; k < n; k++, m = addM(m, 1)) { const last = k === n - 1; o.rows.push({ m, pay: i + (last ? B : 0), int: i, prin: last ? B : 0, bal: last ? 0 : B }); o.series[m] = last ? 0 : B; }
     o.months = n; o.end = n ? mat : null; o.totInt = n ? i * n : null; o.monthlyInt = i;
-    return o;
+  } else {
+    let tot = 0;
+    for (let m = start, k = 0; B > 0.5 && k < 600; m = addM(m, 1), k++) {
+      const i = B * r, p0 = pay(m);
+      if (p0 <= 0 && (!lastPlanM || m > lastPlanM) && !emi) { o.stuck = true; break; }
+      const p = Math.min(p0, B + i);
+      B = B + i - p; tot += i;
+      o.rows.push({ m, pay: p, int: i, prin: p - i, bal: Math.max(0, B) }); o.series[m] = Math.max(0, B);
+      if (k >= 24 && p <= i) { o.stuck = true; break; }
+    }
+    if (!o.stuck && B <= 0.5 && o.rows.length) { o.end = o.rows[o.rows.length - 1].m; o.months = o.rows.length; o.totInt = tot; }
+    else o.stuck = true;
   }
-  let tot = 0;
-  for (let m = start, k = 0; B > 0.5 && k < 600; m = addM(m, 1), k++) {
-    const i = B * r, p0 = pay(m);
-    if (p0 <= 0 && (!lastPlanM || m > lastPlanM)) { o.stuck = true; break; }
-    const p = Math.min(p0, B + i);
-    B = B + i - p; tot += i;
-    o.rows.push({ m, pay: p, int: i, prin: p - i, bal: B });
-    if (k >= 24 && p <= i) { o.stuck = true; break; }
-  }
-  if (!o.stuck && B <= 0.5 && o.rows.length) { o.end = o.rows[o.rows.length - 1].m; o.months = o.rows.length; o.totInt = tot; }
-  else o.stuck = true;
+  o.now = loanBalAt(o, cur);
   return o;
 }
+// Outstanding balance at the end of month m (after that month's payment).
+function loanBalAt(o, m) {
+  if (!o.has) return null;
+  if (o.series[m] !== undefined) return o.series[m];
+  if (m < o.asOfM) return +o.L.outstanding; // before the balance date: best estimate is the entered balance
+  if (o.end && m > o.end) return 0;
+  const ks = Object.keys(o.series).sort(); return o.series[ks[ks.length - 1]];
+}
+// Where the plan's payments differ from this loan's schedule (within the plan's open months).
+function planGap(x) {
+  if (!x.has || x.stuck || !x.rows.length) return null;
+  const he = C.ms[C.ms.length - 1], from = [C.cur, firstOpen()].sort().pop();
+  const byM = Object.fromEntries(x.rows.map(r => [r.m, Math.round(r.pay)]));
+  let diffs = 0, sample = null;
+  for (const m of C.ms.filter(m => m >= from && m <= he && !locked(m))) {
+    const want = byM[m] || 0, have = Math.round(planVal(x.c, m));
+    if (Math.abs(want - have) > 1) { diffs++; sample ||= { m, want, have }; }
+  }
+  return diffs ? { diffs, sample, from } : null;
+}
 
-let selLoan = null, showSched = false;
+let selLoan = null, showSched = true;
 function loans() {
   const cur = C.cur, horizonEnd = C.ms[C.ms.length - 1];
   const list = catList().filter(c => c.group === 'Loans & EMIs').map(loanInfo).sort((a, b) => (b.now ?? -1) - (a.now ?? -1) || b.sched - a.sched);
@@ -640,63 +672,64 @@ function loans() {
   const withBal = list.filter(x => x.has);
   const totOut = withBal.reduce((s, x) => s + x.now, 0);
   const avgRate = totOut ? withBal.reduce((s, x) => s + x.now * x.rate, 0) / totOut : 0;
-  const emiNow = list.reduce((s, x) => s + eff(x.c, cur), 0);
+  const emiNow = list.reduce((s, x) => s + (x.has && x.now === 0 && x.end && x.end < cur ? 0 : (actualVal(x.c, cur) ?? (x.emi || eff(x.c, cur)))), 0);
   const ends = withBal.filter(x => x.end).map(x => x.end).sort();
   const missing = list.length - withBal.length;
   const intLeft = withBal.reduce((s, x) => s + (x.totInt || 0), 0);
-  const inp = (x, f, v, extra) => `<input class="loanin" id="ln-${f}-${x.c.id}" data-loan-f="${f}" data-cat="${x.c.id}" inputmode="decimal" value="${v}" placeholder="${f === 'rate' ? '% p.a.' : 'Enter'}" ${canWrite ? '' : 'readonly'} ${extra || ''}>`;
+  const inp = (x, f, v, w, ph) => `<input class="loanin" id="ln-${f}-${x.c.id}" data-loan-f="${f}" data-cat="${x.c.id}" inputmode="decimal" value="${v}" placeholder="${ph}" style="width:${w}px" ${canWrite ? '' : 'readonly'}>`;
   $('#view').innerHTML = `
   <div class="kpis">
-    <div class="panel kpi"><span class="l">Total outstanding</span><span class="v">${withBal.length ? short(totOut) : '—'}</span><span class="s">${withBal.length ? inr(totOut) : 'Enter balances below'}${missing && withBal.length ? ` · ${missing} without a balance` : ''}</span></div>
+    <div class="panel kpi"><span class="l">Total outstanding, end of ${mlabel(cur)}</span><span class="v">${withBal.length ? short(totOut) : '—'}</span><span class="s">${withBal.length ? inr(totOut) : 'Enter balances below'}${missing && withBal.length ? ` · ${missing} without a balance` : ''}</span></div>
     <div class="panel kpi"><span class="l">EMIs &amp; interest in ${mlabel(cur)}</span><span class="v">${short(emiNow)}</span><span class="s">${C.flow[cur]?.inc ? Math.round(emiNow / C.flow[cur].inc * 100) + '% of this month\'s income' : inr(emiNow)}</span></div>
     <div class="panel kpi"><span class="l">Average interest rate</span><span class="v">${totOut && avgRate ? avgRate.toFixed(2) + '%' : '—'}</span><span class="s">Weighted by balance · interest left ${intLeft ? short(intLeft) : '—'}</span></div>
     <div class="panel kpi"><span class="l">Debt-free by</span><span class="v">${ends.length && !missing && !withBal.some(x => x.stuck && x.kind === 'emi') ? mlabel(ends[ends.length - 1]) : '—'}</span><span class="s">${missing ? 'Needs every loan\'s balance' : withBal.some(x => x.stuck) ? 'Some loans have no end date' : 'When the last loan is repaid'}</span></div>
   </div>
-  <div class="section"><div class="section-head"><div><h2>Loans and commitments</h2><div class="hint">Type the outstanding principal and interest rate from your latest statement; the balance date updates to today. Tap a loan for its tenure, end date and repayment schedule. Scheduled payments come from the Plan tab.</div></div>${canWrite ? '<button class="btn small primary" data-act="newloan">+ Loan</button>' : ''}</div>
+  <div class="section"><div class="section-head"><div><h2>Loans and commitments</h2><div class="hint">From your latest statement, type the outstanding principal (after the most recent EMI), the EMI and the interest rate. The app works out the balance for every remaining month. Tap a loan for its month-by-month schedule.</div></div>${canWrite ? '<button class="btn small primary" data-act="newloan">+ Loan</button>' : ''}</div>
   <div class="loanwrap">
-    <div class="panel scroll"><table class="loantable"><thead><tr><th>Loan / commitment</th><th class="n">Outstanding principal</th><th class="n">EMI / payment</th><th class="n">Rate % p.a.</th><th>Ends</th><th>Actions</th></tr></thead><tbody>
+    <div class="panel scroll"><table class="loantable"><thead><tr><th>Loan / commitment</th><th class="n">Outstanding principal</th><th class="n">EMI</th><th class="n">Rate %</th><th class="n">Balance, end ${mshort(cur)}</th><th></th></tr></thead><tbody>
     ${list.map(x => `<tr class="loanrow ${x.c.id === selLoan ? 'sel' : ''}" data-loan="${x.c.id}" tabindex="0">
       <td><b style="font-weight:600">${esc(x.c.name)}</b><div class="dim" style="font-size:12px">${esc(accName(x.c.account))}${x.kind === 'interest' ? ' · interest only' : ''}</div></td>
-      <td class="n">${inp(x, 'outstanding', x.has ? (+x.L.outstanding).toLocaleString('en-IN') : '')}<div class="dim" style="font-size:11.5px;margin-top:2px">${x.asOf ? 'as of ' + esc(x.asOf) : 'from your statement'}</div></td>
-      <td class="n">${x.sched ? inr(x.sched) : '<span class="dim">—</span>'}</td>
-      <td class="n">${inp(x, 'rate', x.L.rate ? x.L.rate : '', 'style="width:66px"')}</td>
-      <td>${!x.has ? '<span class="dim">—</span>' : x.end ? mlabel(x.end) : `<span class="pill low">${x.kind === 'interest' ? 'Set maturity' : 'No end'}</span>`}</td>
-      <td><div class="row" style="flex-wrap:nowrap"><button class="btn small" data-act="loansched" data-cat="${x.c.id}">Schedule</button>${canWrite ? `<button class="btn small ghost" data-act="loanedit" data-cat="${x.c.id}" aria-label="Edit ${esc(x.c.name)}">✎</button>` : ''}</div></td></tr>`).join('') || `<tr><td colspan="6" class="dim">No loans yet. Add one with “+ Loan”, or move a Plan row into the “Loans &amp; EMIs” group.</td></tr>`}
+      <td class="n">${inp(x, 'outstanding', x.has ? (+x.L.outstanding).toLocaleString('en-IN') : '', 108, 'Enter')}<div class="dim" style="font-size:11.5px;margin-top:2px">${x.asOf ? 'as of ' + esc(x.asOf) : 'from your statement'}</div></td>
+      <td class="n">${inp(x, 'emi', x.emi ? x.emi.toLocaleString('en-IN') : '', 92, x.kind === 'interest' ? 'Interest' : (x.sched ? x.sched.toLocaleString('en-IN') : 'EMI'))}<div class="dim" style="font-size:11.5px;margin-top:2px">${x.emi ? 'your EMI' : x.sched ? 'from plan' : ''}</div></td>
+      <td class="n">${inp(x, 'rate', x.L.rate ? x.L.rate : '', 58, '% p.a.')}</td>
+      <td class="n"><b>${x.has ? inr(x.now) : '<span class="dim">—</span>'}</b><div class="dim" style="font-size:11.5px;margin-top:2px">${!x.has ? '' : x.end ? 'ends ' + mlabel(x.end) : `<span style="color:var(--bad)">${x.kind === 'interest' ? 'set maturity' : 'no end date'}</span>`}</div></td>
+      <td><div class="row" style="flex-wrap:nowrap;gap:2px">${canWrite ? `<button class="iconbtn" data-act="loanedit" data-cat="${x.c.id}" title="Edit loan" aria-label="Edit ${esc(x.c.name)}">✎</button>` : ''}</div></td></tr>`).join('') || `<tr><td colspan="6" class="dim">No loans yet. Add one with “+ Loan”, or move a Plan row into the “Loans &amp; EMIs” group.</td></tr>`}
     </tbody></table></div>
-    <div class="panel pad loandetail" id="loandetail">${selLoan ? loanDetail(list.find(x => x.c.id === selLoan), horizonEnd) : '<div class="empty" style="padding:20px 8px"><b>Pick a loan</b>Tap any loan to see its outstanding balance today, remaining tenure, end date and repayment schedule.</div>'}</div>
+    <div class="panel pad loandetail" id="loandetail">${selLoan ? loanDetail(list.find(x => x.c.id === selLoan), horizonEnd) : '<div class="empty" style="padding:20px 8px"><b>Pick a loan</b>Tap any loan to see this month\'s outstanding balance, remaining tenure, end date and the month-by-month schedule.</div>'}</div>
   </div></div>`;
   if (selLoan && window.innerWidth < 1260 && loans._scroll) { loans._scroll = false; $('#loandetail').scrollIntoView({ behavior: 'smooth', block: 'start' }); }
 }
 
 function loanDetail(x, horizonEnd) {
-  const c = x.c;
+  const c = x.c, cur = C.cur;
   const head = `<div class="section-head" style="margin-bottom:10px"><div><h2>${esc(c.name)}</h2><div class="hint">${esc(accName(c.account))} · ${x.kind === 'interest' ? 'Interest-only loan' : 'EMI loan'}</div></div>${canWrite ? `<button class="btn small" data-act="loanedit" data-cat="${c.id}">Edit loan</button>` : ''}</div>`;
-  if (!x.has) return head + `<div class="empty" style="padding:16px 8px"><b>Add the loan details</b>Enter the outstanding principal and interest rate from your latest loan statement to see tenure, end date and schedule.${canWrite ? `<div style="margin-top:12px"><button class="btn primary" data-act="loanedit" data-cat="${c.id}">Enter loan details</button></div>` : ''}</div>`;
+  if (!x.has) return head + `<div class="empty" style="padding:16px 8px"><b>Add the loan details</b>Enter the outstanding principal, EMI and interest rate from your latest loan statement to get the balance for every remaining month.${canWrite ? `<div style="margin-top:12px"><button class="btn primary" data-act="loanedit" data-cat="${c.id}">Enter loan details</button></div>` : ''}</div>`;
   const cards = [
-    ['Outstanding today', inr(x.now), x.asOf ? `${inr(+x.L.outstanding)} on ${esc(x.asOf)}` : ''],
+    [`Outstanding, end of ${mlabel(cur)}`, inr(x.now), x.asOf ? `${inr(+x.L.outstanding)} on ${esc(x.asOf)}` : ''],
     ['Interest rate', x.rate ? x.rate + '% p.a.' : 'Not entered', x.kind === 'interest' ? `Monthly interest ${inr(x.monthlyInt || 0)}` : ''],
-    ['Scheduled payment', inr(x.sched), x.kind === 'interest' ? 'Should cover the interest' : 'Monthly EMI from the plan'],
-    ['Remaining tenure', x.months ? tenureTxt(x.months) : '—', x.months ? x.months + ' payments' : ''],
+    ['EMI', inr(x.sched), x.kind === 'interest' ? 'Should cover the interest' : x.emi ? 'As entered for this loan' : 'Taken from the plan'],
+    ['Remaining tenure', x.months ? tenureTxt(x.months) : '—', x.months ? x.months + ' payments from ' + mlabel(x.start) : ''],
     ['Ends', x.end ? mlabel(x.end) : '—', x.end && x.end > horizonEnd ? 'After your plan ends' : ''],
-    ['Interest still to pay', x.totInt != null ? inr(x.totInt) : '—', x.totInt != null && x.now ? 'on ' + inr(x.now) + ' principal' : ''],
-  ].map(([l, v, s]) => `<div class="lk"><span class="l">${l}</span><span class="v">${v}</span>${s ? `<span class="s">${s}</span>` : ''}</div>`).join('');
+    ['Interest still to pay', x.totInt != null ? inr(x.totInt) : '—', x.totInt != null ? 'Total repayments ' + inr(x.rows.reduce((s, r) => s + r.pay, 0)) : ''],
+  ].map(([l, v, s], i) => `<div class="lk ${i === 0 ? 'lk-hero' : ''}"><span class="l">${l}</span><span class="v">${v}</span>${s ? `<span class="s">${s}</span>` : ''}</div>`).join('');
   let warn = '';
-  if (x.kind === 'emi' && x.stuck) warn = `<div class="alert"><span class="ic">!</span><div>At ${inr(x.lastPay || x.sched)} a month this loan is never repaid${x.rate ? `; the payment barely covers the ${x.rate}% interest` : ''}. Check the rate and balance, or raise the EMI in the Plan tab.</div></div>`;
+  const gap = planGap(x);
+  if (x.kind === 'emi' && x.stuck) warn = `<div class="alert"><span class="ic">!</span><div>At ${inr(x.sched)} a month this loan is never repaid${x.rate ? `; the payment barely covers the ${x.rate}% interest` : ''}. Check the balance, EMI and rate.</div></div>`;
   else if (x.kind === 'interest' && !x.end) warn = `<div class="alert" style="background:var(--warn-soft)"><span class="ic" style="background:var(--warn)">?</span><div>Set a maturity month to see when the principal of ${inr(x.now)} falls due.</div></div>`;
-  else if (x.kind === 'emi' && x.end && x.lastPlanM && x.end > x.lastPlanM) warn = `<div class="alert" style="background:var(--warn-soft)"><span class="ic" style="background:var(--warn)">!</span><div>Your plan has EMIs only until ${mlabel(x.lastPlanM)}, but this loan runs to ${mlabel(x.end)}.${x.lastPlanM < horizonEnd && canWrite ? ` <button class="btn small" data-act="loanfit" data-cat="${c.id}">Add EMIs to the plan up to ${mlabel(x.end < horizonEnd ? x.end : horizonEnd)}</button>` : ' The rest falls after your plan ends; extend it in Accounts &amp; setup.'}</div></div>`;
-  else if (x.kind === 'emi' && x.end && x.lastPlanM && x.end < x.lastPlanM) warn = `<div class="alert" style="background:var(--warn-soft)"><span class="ic" style="background:var(--warn)">!</span><div>This loan is repaid in ${mlabel(x.end)}, but the plan still has EMIs until ${mlabel(x.lastPlanM)}.${canWrite ? ` <button class="btn small" data-act="loanfit" data-cat="${c.id}">Stop the plan's EMIs after ${mlabel(x.end)}</button>` : ''}</div></div>`;
+  else if (gap) warn = `<div class="alert" style="background:var(--warn-soft)"><span class="ic" style="background:var(--warn)">!</span><div>Your monthly plan doesn't match this loan's schedule in ${gap.diffs} month${gap.diffs > 1 ? 's' : ''} (for example ${mlabel(gap.sample.m)}: plan ${inr(gap.sample.have)}, schedule ${inr(gap.sample.want)}). The plan drives your account balances and forecast.${canWrite ? ` <button class="btn small" data-act="loanfit" data-cat="${c.id}">Update the plan to match</button>` : ''}</div></div>`;
+  if (x.end && x.end > horizonEnd && !x.stuck) warn += `<p class="hint" style="margin:8px 0 0">The schedule runs to ${mlabel(x.end)}, beyond your plan (${mlabel(horizonEnd)}). Extend the plan in Accounts &amp; setup to include the later EMIs in the forecast.</p>`;
   const rows = x.rows;
   const chart = rows.length > 1 ? (() => {
-    const W = 520, H = 120, L = 6, R = 6, T = 10, B = 20, mx = Math.max(x.now, ...rows.map(r => r.bal)) || 1;
+    const W = 520, H = 120, L = 6, R = 6, T = 10, B = 20, mx = Math.max(x.openBal, ...rows.map(r => r.bal)) || 1;
     const px = i => L + i / (rows.length - 1) * (W - L - R), py = v => T + (1 - v / mx) * (H - T - B);
     const pts = rows.map((r, i) => `${px(i).toFixed(1)},${py(r.bal).toFixed(1)}`).join(' ');
     return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block" role="img" aria-label="Outstanding balance over time"><polygon points="${L},${py(0)} ${pts} ${px(rows.length - 1)},${py(0)}" fill="var(--accent)" opacity=".1"/><polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="2"/><line x1="${L}" x2="${W - R}" y1="${py(0)}" y2="${py(0)}" stroke="var(--line)"/><text x="${L}" y="${H - 5}" style="fill:var(--muted);font:10px var(--body)">${mshort(rows[0].m)}</text><text x="${W - R}" y="${H - 5}" text-anchor="end" style="fill:var(--muted);font:10px var(--body)">${mshort(rows[rows.length - 1].m)}</text></svg>`;
   })() : '';
-  const shown = showSched ? rows : rows.slice(0, 6);
-  const table = rows.length ? `<div class="section-head" style="margin-top:14px"><h3>Repayment schedule</h3>${rows.length > 6 ? `<button class="btn small ghost" data-act="loanschedtoggle">${showSched ? 'Show less' : `Show all ${rows.length} months`}</button>` : ''}</div>
-    <div class="scroll" style="max-height:${showSched ? '420px' : 'none'};overflow:auto;border:1px solid var(--line);border-radius:8px;margin-top:6px"><table><thead><tr><th>Month</th><th class="n">Payment</th><th class="n">Interest</th><th class="n">Principal</th><th class="n">Balance</th></tr></thead><tbody>
-    ${shown.map(r => `<tr><td>${mlabel(r.m)}</td><td class="n">${inr(r.pay)}</td><td class="n dim">${inr(r.int)}</td><td class="n">${inr(r.prin)}</td><td class="n">${inr(r.bal)}</td></tr>`).join('')}</tbody></table></div>
-    <p class="hint" style="margin:8px 0 0">Uses the plan's payments (and logged actuals) while the plan runs, then assumes the last EMI continues. Estimates only; your lender's statement is the final word.</p>` : '';
+  let lastY = '';
+  const table = rows.length ? `<div class="section-head" style="margin-top:14px"><h3>Month-by-month schedule · ${rows.length} months</h3><div class="row" style="gap:4px"><button class="btn small ghost" data-act="loanschedtoggle">${showSched ? 'Show 12 months' : 'Show all months'}</button><button class="btn small ghost" data-act="loanexport" data-cat="${c.id}">⭳ Export</button></div></div>
+    <div class="scroll" style="max-height:${showSched ? '460px' : 'none'};overflow:auto;border:1px solid var(--line);border-radius:8px;margin-top:6px"><table class="schedtable"><thead><tr><th>Month</th><th class="n">EMI</th><th class="n">Interest</th><th class="n">Principal</th><th class="n">Outstanding</th></tr></thead><tbody>
+    ${(showSched ? rows : rows.slice(0, 12)).map(r => { const y = r.m.slice(0, 4); const yr = y !== lastY ? `<tr class="grp"><td colspan="5">${y}</td></tr>` : ''; lastY = y; return yr + `<tr class="${r.m === cur ? 'curm' : ''}"><td>${mlabel(r.m)}${r.m === cur ? ' <span class="pill act" style="font-size:10.5px">now</span>' : ''}</td><td class="n">${inr(r.pay)}</td><td class="n dim">${inr(r.int)}</td><td class="n">${inr(r.prin)}</td><td class="n"><b>${inr(r.bal)}</b></td></tr>`; }).join('')}</tbody></table></div>
+    <p class="hint" style="margin:8px 0 0">Outstanding is the balance after that month's EMI. Logged payments are used where you have them. Estimates only; your lender's statement is the final word.</p>` : '';
   return head + `<div class="lkgrid">${cards}</div>${warn ? `<div style="margin-top:12px">${warn}</div>` : ''}${chart ? `<div style="margin-top:12px">${chart}</div>` : ''}${table}`;
 }
 
@@ -706,13 +739,14 @@ function loanModal(id) {
   openModal(`<h2>${esc(c.name)}</h2>
     <div class="seg" role="group" aria-label="Loan type"><button data-act="lkind" data-k="emi" aria-pressed="${L.kind !== 'interest'}">EMI loan</button><button data-act="lkind" data-k="interest" aria-pressed="${L.kind === 'interest'}">Interest only</button></div>
     <div class="form">
-      <label class="f">Outstanding principal (₹)<input id="lm-out" inputmode="decimal" value="${L.outstanding ? (+L.outstanding).toLocaleString('en-IN') : ''}" placeholder="From your statement"></label>
-      <label class="f">Interest rate (% a year)<input id="lm-rate" inputmode="decimal" value="${L.rate || ''}" placeholder="e.g. 8.5"></label>
+      <label class="f">Outstanding principal (₹)<input id="lm-out" inputmode="decimal" value="${L.outstanding ? (+L.outstanding).toLocaleString('en-IN') : ''}" placeholder="After the latest EMI"></label>
       <label class="f">Balance date<input type="date" id="lm-asof" value="${esc(L.asOf || todayD)}"></label>
+      <label class="f" id="lm-emi-wrap" ${L.kind === 'interest' ? 'hidden' : ''}>EMI (₹ a month)<input id="lm-emi" inputmode="decimal" value="${L.emi ? (+L.emi).toLocaleString('en-IN') : ''}" placeholder="${planVal(c, C.cur) ? planVal(c, C.cur).toLocaleString('en-IN') + ' in the plan' : 'e.g. 54,895'}"></label>
+      <label class="f">Interest rate (% a year)<input id="lm-rate" inputmode="decimal" value="${L.rate || ''}" placeholder="e.g. 8.5"></label>
       <label class="f" id="lm-mat-wrap" ${L.kind === 'interest' ? '' : 'hidden'}>Maturity (principal due)<input type="month" id="lm-mat" value="${esc(L.maturity || '')}"></label>
     </div>
     <input type="hidden" id="lm-kind" value="${L.kind === 'interest' ? 'interest' : 'emi'}">
-    <p class="hint" style="margin:0">The monthly payment comes from this row in the Plan tab. Change it there, or with “Edit plan row”.</p>
+    <p class="hint" style="margin:0">With these three figures the app works out the balance for every remaining month. Leave EMI blank to use the payments in your plan.</p>
     <div class="row" style="justify-content:space-between"><button class="btn ghost" data-act="editcat" data-cat="${c.id}">Edit plan row</button><div class="row"><button class="btn ghost" data-act="close">Cancel</button><button class="btn primary" data-act="saveloan" data-cat="${c.id}">Save</button></div></div>`);
 }
 
@@ -980,6 +1014,112 @@ function txModal(kind) {
     <div class="row" style="justify-content:flex-end"><button class="btn ghost" data-act="close">Cancel</button><button class="btn primary" data-act="tx-save-tr">Save transfer</button></div>`);
 }
 
+// ---------- Net worth ----------
+const ASSET_TYPES = ['Property', 'Gold', 'Mutual funds & shares', 'Fixed deposits', 'Provident fund & NPS', 'Insurance (cash value)', 'Money lent', 'Vehicle', 'Other asset'];
+const LIAB_TYPES = ['Credit card', 'Personal borrowing', 'Other liability'];
+const holdList = side => Object.values(S.holdings).filter(h => (h.side || 'asset') === side).sort((a, b) => ((side === 'asset' ? ASSET_TYPES : LIAB_TYPES).indexOf(a.type) - (side === 'asset' ? ASSET_TYPES : LIAB_TYPES).indexOf(b.type)) || String(a.name).localeCompare(b.name));
+// Value at the end of month m: grows at its yearly rate from the value date, plus any linked plan payments (e.g. SIPs) made since.
+function holdingValue(h, m) {
+  const asOfM = (h.asOf || C.ms[0] || m).slice(0, 7), g = (+h.growth || 0) / 100;
+  const grow = n => Math.pow(1 + g, n / 12);
+  let v = (+h.value || 0) * grow(monthsBetween(asOfM, m));
+  const c = h.linkCat && S.categories[h.linkCat];
+  if (c) for (const k of C.ms) if (k > asOfM && k <= m) v += eff(c, k) * grow(monthsBetween(k, m));
+  return v;
+}
+function netWorthAt(m) {
+  const banks = C.accs.reduce((s, a) => s + (C.rows[a.id][m]?.end ?? 0), 0);
+  const assets = holdList('asset').reduce((s, h) => s + holdingValue(h, m), 0);
+  const loanList = catList().filter(c => c.group === 'Loans & EMIs').map(loanInfo).filter(x => x.has);
+  const loans = loanList.reduce((s, x) => s + loanBalAt(x, m), 0);
+  const other = holdList('liability').reduce((s, h) => s + holdingValue(h, m), 0);
+  return { banks, assets, loans, other, totalA: banks + assets, totalL: loans + other, net: banks + assets - loans - other };
+}
+function networth() {
+  const m = selMonth, cur = C.cur, first = C.ms[0], last = C.ms[C.ms.length - 1];
+  const nw = netWorthAt(m), start = netWorthAt(first), end = netWorthAt(last);
+  const series = C.ms.map(x => ({ m: x, v: netWorthAt(x).net }));
+  const loanAll = catList().filter(c => c.group === 'Loans & EMIs').map(loanInfo);
+  const noBal = loanAll.filter(x => !x.has);
+  const row = (name, sub, val, act) => `<tr><td><div style="font-weight:600">${name}</div>${sub ? `<div class="dim" style="font-size:12px">${sub}</div>` : ''}</td><td class="n">${inr(val)}</td><td class="n" style="width:1%">${act || ''}</td></tr>`;
+  const edit = h => canWrite ? `<button class="iconbtn" data-act="hold-edit" data-id="${esc(h.id)}" title="Edit" aria-label="Edit ${esc(h.name)}">✎</button>` : '';
+  const assetsRows = holdList('asset').map(h => row(esc(h.name), esc(h.type || '') + (h.growth ? ` · grows ${h.growth}% a year` : '') + (h.linkCat && S.categories[h.linkCat] ? ` · plus “${esc(S.categories[h.linkCat].name)}” payments` : ''), holdingValue(h, m), edit(h))).join('');
+  const liabRows = loanAll.filter(x => x.has).map(x => row(esc(x.c.name), 'Loan · ' + (x.rate ? x.rate + '% · ' : '') + (x.end ? 'ends ' + mlabel(x.end) : 'no end date'), loanBalAt(x, m), `<button class="iconbtn" data-act="goloan" data-cat="${x.c.id}" title="Open loan" aria-label="Open ${esc(x.c.name)}">›</button>`)).join('')
+    + holdList('liability').map(h => row(esc(h.name), esc(h.type || '') + (h.growth ? ` · changes ${h.growth}% a year` : ''), holdingValue(h, m), edit(h))).join('');
+  const chg = nw.net - start.net;
+  $('#view').innerHTML = `
+  <div class="section"><div class="section-head">
+    <div><h2 style="font-size:26px">Net worth</h2><div class="hint">Everything the family owns minus everything it owes, at the end of the month. Bank balances come from your accounts, loan balances from each loan's schedule; add property, gold, investments and other holdings below.</div></div>
+    <div class="row">${monthBar()}</div></div></div>
+  <div class="kpis">
+    <div class="panel kpi"><span class="l">Net worth, end of ${mlabel(m)}</span><span class="v ${nw.net < 0 ? 'neg' : ''}">${short(nw.net)}</span><span class="s">${inr(nw.net)}</span></div>
+    <div class="panel kpi"><span class="l">Total assets</span><span class="v">${short(nw.totalA)}</span><span class="s">Bank ${short(nw.banks)} · other ${short(nw.assets)}</span></div>
+    <div class="panel kpi"><span class="l">Total liabilities</span><span class="v">${short(nw.totalL)}</span><span class="s">Loans ${short(nw.loans)}${nw.other ? ' · other ' + short(nw.other) : ''}</span></div>
+    <div class="panel kpi"><span class="l">Change since ${mlabel(first)}</span><span class="v ${chg < 0 ? 'neg' : 'pos'}">${chg >= 0 ? '+' : '−'}${short(Math.abs(chg)).replace('−', '')}</span><span class="s">Projected ${short(end.net)} by ${mlabel(last)}</span></div>
+  </div>
+  ${noBal.length ? `<div class="alert" style="background:var(--warn-soft);margin-top:12px"><span class="ic" style="background:var(--warn)">!</span><div>${noBal.length} loan${noBal.length > 1 ? 's have' : ' has'} no outstanding balance yet (${noBal.slice(0, 4).map(x => esc(x.c.name)).join(', ')}${noBal.length > 4 ? '…' : ''}), so ${noBal.length > 1 ? 'they are' : 'it is'} not counted as a liability. <button class="btn small" data-tab="loans">Enter loan balances</button></div></div>` : ''}
+  ${!holdList('asset').length ? `<div class="alert" style="margin-top:12px;background:var(--accent-soft)"><span class="ic" style="background:var(--accent)">+</span><div>Add what the family owns besides bank balances, such as the Ooty villa, gold or mutual funds, to see the full picture.${canWrite ? ' <button class="btn small" data-act="hold-new" data-side="asset">+ Asset</button>' : ''}</div></div>` : ''}
+  <div class="section"><div class="section-head"><h2>Net worth by month</h2><span class="hint">Includes the plan's future payments, loan repayments and expected growth of holdings.</span></div><div class="panel chart" id="nwchart"></div></div>
+  <div class="section grid2" style="align-items:start">
+    <div class="section" style="margin:0"><div class="section-head"><h2>Assets · ${inr(nw.totalA)}</h2>${canWrite ? '<button class="btn small primary" data-act="hold-new" data-side="asset">+ Asset</button>' : ''}</div>
+      <div class="panel scroll"><table><tbody>
+        <tr class="grp"><td colspan="3">Bank accounts · ${inr(nw.banks)}</td></tr>
+        ${C.accs.map(a => row(esc(a.name), accKind(a) + (C.rows[a.id][m]?.actual !== undefined ? ' · bank balance' : ' · expected'), C.rows[a.id][m]?.end ?? 0, '')).join('')}
+        <tr class="grp"><td colspan="3">Other assets · ${inr(nw.assets)}</td></tr>
+        ${assetsRows || `<tr><td colspan="3" class="dim">None added yet.</td></tr>`}
+      </tbody></table></div></div>
+    <div class="section" style="margin:0"><div class="section-head"><h2>Liabilities · ${inr(nw.totalL)}</h2>${canWrite ? '<button class="btn small" data-act="hold-new" data-side="liability">+ Liability</button>' : ''}</div>
+      <div class="panel scroll"><table><tbody>${liabRows || `<tr><td colspan="3" class="dim">No loan balances or other liabilities entered.</td></tr>`}
+      <tr class="tot"><td>Total</td><td class="n">${inr(nw.totalL)}</td><td></td></tr></tbody></table></div></div>
+  </div>`;
+  lineChart($('#nwchart'), series, m);
+}
+function lineChart(el, series, selM) {
+  if (!series.length) return;
+  const W = Math.max(300, el.clientWidth - 16), H = 240, L = 58, R = 14, T = 16, B = 28;
+  const vals = series.map(p => p.v), lo = Math.min(0, ...vals), hi = Math.max(1, ...vals) * 1.08;
+  const step = (() => { const raw = (hi - lo) / 4, p = Math.pow(10, Math.floor(Math.log10(raw || 1))); return [1, 2, 2.5, 5, 10].map(k => k * p).find(s => s >= raw); })();
+  const y0 = Math.floor(lo / step) * step, y1 = Math.ceil(hi / step) * step;
+  const x = i => L + i / Math.max(1, series.length - 1) * (W - L - R), y = v => T + (1 - (v - y0) / (y1 - y0)) * (H - T - B);
+  let g = '';
+  for (let v = y0; v <= y1 + 1; v += step) g += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L - 8}" y="${y(v) + 4}" text-anchor="end">${short(v)}</text>`;
+  const every = series.length > 24 ? 4 : series.length > 12 ? 3 : 1;
+  series.forEach((p, i) => { if (i % every === 0) g += `<text x="${x(i)}" y="${H - 8}" text-anchor="middle">${mshort(p.m)}</text>`; });
+  const line = vals.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join('');
+  const si = series.findIndex(p => p.m === selM), ci = series.findIndex(p => p.m === C.cur);
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Net worth by month">${g}
+    ${y0 < 0 ? `<line x1="${L}" x2="${W - R}" y1="${y(0)}" y2="${y(0)}" stroke="var(--ink2)"/>` : ''}
+    ${ci >= 0 ? `<line x1="${x(ci)}" x2="${x(ci)}" y1="${T}" y2="${H - B}" stroke="var(--marigold)" stroke-width="1.5"/><text x="${x(ci) + 5}" y="${T + 10}" style="fill:var(--marigold)">Now</text>` : ''}
+    <path d="${line}L${x(vals.length - 1)},${y(Math.max(0, y0))}L${x(0)},${y(Math.max(0, y0))}Z" fill="var(--accent)" opacity=".1"/>
+    <path d="${line}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"/>
+    ${si >= 0 ? `<circle cx="${x(si)}" cy="${y(vals[si])}" r="5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/>` : ''}
+    <rect x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}" fill="transparent"/></svg><div class="tip" hidden></div>`;
+  const svg = el.querySelector('svg'), tip = el.querySelector('.tip');
+  svg.addEventListener('pointermove', ev => {
+    const bb = svg.getBoundingClientRect(), px = (ev.clientX - bb.left) / bb.width * W;
+    const i = Math.max(0, Math.min(series.length - 1, Math.round((px - L) / (W - L - R) * (series.length - 1))));
+    tip.innerHTML = `<div class="dim">${mlabel(series[i].m)}</div><b>${inr(series[i].v)}</b>`; tip.hidden = false;
+    const tx = x(i) / W * bb.width; tip.style.left = Math.min(bb.width - tip.offsetWidth, Math.max(0, tx + 12 - (tx > bb.width * .6 ? tip.offsetWidth + 24 : 0))) + 'px'; tip.style.top = '8px';
+  });
+  svg.addEventListener('pointerleave', () => { tip.hidden = true; });
+}
+function holdModal(id, side) {
+  const h = id ? S.holdings[id] : { side: side || 'asset', name: '', type: side === 'liability' ? LIAB_TYPES[0] : ASSET_TYPES[0], value: '', asOf: todayD, growth: '', linkCat: '' };
+  const sd = h.side || 'asset', types = sd === 'asset' ? ASSET_TYPES : LIAB_TYPES;
+  const cats = catList().filter(c => c.type !== 'income' && c.group !== 'Loans & EMIs');
+  openModal(`<h2>${id ? 'Edit' : 'Add'} ${sd === 'asset' ? 'asset' : 'liability'}</h2>
+    <div class="form">
+      <label class="f full">Name<input id="h-name" value="${esc(h.name)}" placeholder="${sd === 'asset' ? 'e.g. Aura Velune Villa, Ooty' : 'e.g. HDFC credit card'}"></label>
+      <label class="f">Type<select id="h-type">${types.map(t => `<option ${t === h.type ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
+      <label class="f">${sd === 'asset' ? 'Current value' : 'Amount owed'} (₹)<input id="h-val" inputmode="decimal" value="${h.value ? (+h.value).toLocaleString('en-IN') : ''}"></label>
+      <label class="f">Value date<input type="date" id="h-asof" value="${esc(h.asOf || todayD)}"></label>
+      <label class="f">${sd === 'asset' ? 'Expected growth' : 'Yearly change'} (% a year)<input id="h-growth" inputmode="decimal" value="${h.growth ?? ''}" placeholder="${sd === 'asset' ? 'e.g. 6 for property, 10 for funds' : 'e.g. 0'}"></label>
+      ${sd === 'asset' ? `<label class="f full">Add payments from a plan row (optional)<select id="h-link"><option value="">None</option>${cats.map(c => `<option value="${c.id}" ${c.id === h.linkCat ? 'selected' : ''}>${esc(catLabel(c))}</option>`).join('')}</select></label>` : '<input type="hidden" id="h-link" value="">'}
+    </div>
+    <p class="hint" style="margin:0">${sd === 'asset' ? 'Linking a plan row adds its monthly payments to this asset, e.g. link “MF” to your mutual funds, or “For OOTY Constr Plot 7” to the villa, so the value grows as you invest.' : 'Loans in the Loans tab are counted automatically; add other debts here.'}</p>
+    <div class="row" style="justify-content:space-between">${id ? `<button class="btn ghost danger" data-act="hold-del" data-id="${esc(id)}">Delete</button>` : '<span></span>'}<div class="row"><button class="btn ghost" data-act="close">Cancel</button><button class="btn primary" data-act="hold-save" data-id="${esc(id || '')}" data-side="${sd}">Save</button></div></div>`);
+}
+
 function setup() {
   const st = S.settings;
   if (window.__cashbookLocal?.desktop) setTimeout(async () => { const el = $('#desk-dir'); if (el) { try { el.textContent = (await window.__cashbookLocal.desktop.info()).dir; } catch (e) {} } }, 0);
@@ -1082,7 +1222,7 @@ function confirmTwice(btn, key) {
 
 document.addEventListener('click', async ev => {
   const t = ev.target.closest('[data-tab],[data-act]');
-  if (!t) { const row = ev.target.closest('[data-loan]'); if (row && !ev.target.closest('input,button,select')) { selLoan = row.dataset.loan; showSched = false; loans._scroll = true; render(); } return; }
+  if (!t) { const row = ev.target.closest('[data-loan]'); if (row && !ev.target.closest('input,button,select')) { selLoan = row.dataset.loan; showSched = true; loans._scroll = true; render(); } return; }
   if (t.dataset.tab) { tab = t.dataset.tab; try { history.replaceState(null, '', '#' + tab); } catch (e) {} render(); window.scrollTo(0, 0); return; }
   const a = t.dataset.act;
   if (a === 'scrim') { if (ev.target === t) closeModal(); return; }
@@ -1094,30 +1234,32 @@ document.addEventListener('click', async ev => {
   if (a === 'loanschedtoggle') { showSched = !showSched; return render(); }
   if (a === 'loanedit') return loanModal(t.dataset.cat);
   if (a === 'newloan') return catModal(null, null, 'Loans & EMIs');
-  if (a === 'lkind') { $('#lm-kind').value = t.dataset.k; document.querySelectorAll('[data-act=lkind]').forEach(b => b.setAttribute('aria-pressed', b === t)); $('#lm-mat-wrap').hidden = t.dataset.k !== 'interest'; return; }
+  if (a === 'lkind') { $('#lm-kind').value = t.dataset.k; document.querySelectorAll('[data-act=lkind]').forEach(b => b.setAttribute('aria-pressed', b === t)); $('#lm-mat-wrap').hidden = t.dataset.k !== 'interest'; $('#lm-emi-wrap').hidden = t.dataset.k === 'interest'; return; }
   if (a === 'saveloan') {
     const id = t.dataset.cat, raw = $('#lm-out').value.trim(), rr = $('#lm-rate').value.trim();
     const outstanding = raw === '' ? null : num(raw), rate = rr === '' ? null : num(rr);
     if (rate !== null && (rate < 0 || rate > 60)) return toast('Enter the yearly interest rate as a percentage, e.g. 8.5.');
-    const loan = { kind: $('#lm-kind').value, outstanding, rate, asOf: $('#lm-asof').value || todayD, maturity: $('#lm-mat').value || '' };
+    const er = $('#lm-emi').value.trim(), emi = er === '' ? null : num(er);
+    const loan = { kind: $('#lm-kind').value, outstanding, rate, emi, asOf: $('#lm-asof').value || todayD, maturity: $('#lm-mat').value || '' };
     t.disabled = true;
     if (await write(() => db.doc('categories/' + id).update({ loan }), 'Loan details saved')) { selLoan = id; closeModal(); render(); } else t.disabled = false;
     return;
   }
   if (a === 'loanfit') {
     const c = S.categories[t.dataset.cat]; if (!c) return;
-    const x = loanInfo(c), he = C.ms[C.ms.length - 1];
-    if (!x.end || !x.lastPlanM) return;
+    const x = loanInfo(c), gap = planGap(x); if (!gap) return;
+    const byM = Object.fromEntries(x.rows.map(r => [r.m, Math.round(r.pay)]));
     const amounts = { ...(c.amounts || {}) };
-    const finalPay = x.rows.length ? x.rows[x.rows.length - 1].pay : x.lastPay;
-    if (x.end > x.lastPlanM) {
-      for (const m of range(addM(x.lastPlanM, 1), x.end < he ? x.end : he)) if (!locked(m)) amounts[m] = Math.round(m === x.end ? finalPay : x.lastPay);
-    } else {
-      if (!locked(x.end)) amounts[x.end] = Math.round(finalPay);
-      for (const m of Object.keys(amounts)) if (m > x.end && !locked(m)) delete amounts[m];
-    }
+    for (const m of C.ms) if (m >= gap.from && !locked(m)) { if (byM[m]) amounts[m] = byM[m]; else delete amounts[m]; }
     const { id, ...body } = c; body.amounts = amounts;
-    return write(() => db.doc('categories/' + c.id).set(body), 'Plan updated to match the loan');
+    return write(() => db.doc('categories/' + c.id).set(body), 'Plan updated to match the loan schedule');
+  }
+  if (a === 'loanexport') {
+    const c = S.categories[t.dataset.cat]; if (!c) return; const x = loanInfo(c);
+    const csv = ['Month,EMI,Interest,Principal,Outstanding', ...x.rows.map(r => [mlabel(r.m), Math.round(r.pay), Math.round(r.int), Math.round(r.prin), Math.round(r.bal)].join(','))].join('\r\n');
+    const name = c.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase() + '-schedule.csv';
+    try { if (window.__cashbookLocal?.exportFile) await window.__cashbookLocal.exportFile(name, csv, 'text/csv'); else { const el = document.createElement('a'); el.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); el.download = name; el.click(); } } catch (e) {}
+    return;
   }
   if (a === 'reopen') {
     if (!confirmTwice(t, 'ro' + t.dataset.m)) return;
@@ -1212,6 +1354,21 @@ document.addEventListener('click', async ev => {
     t.disabled = false; if (ok) { toast('Transfer added'); $('#t-amt').value = ''; }
     return;
   }
+  if (a === 'hold-new') return holdModal(null, t.dataset.side);
+  if (a === 'hold-edit') return holdModal(t.dataset.id);
+  if (a === 'goloan') { selLoan = t.dataset.cat; showSched = true; tab = 'loans'; render(); window.scrollTo(0, 0); return; }
+  if (a === 'hold-save') {
+    const name = $('#h-name').value.trim(); if (!name) return toast('Give it a name.');
+    const value = num($('#h-val').value); if (!value) return toast('Enter the value.');
+    const gr = $('#h-growth').value.trim(), growth = gr === '' ? 0 : num(gr);
+    if (growth < -50 || growth > 50) return toast('Enter the yearly growth as a percentage, e.g. 6.');
+    const id = t.dataset.id || newId('h');
+    const body = { side: t.dataset.side, name, type: $('#h-type').value, value, asOf: $('#h-asof').value || todayD, growth, linkCat: $('#h-link').value || '' };
+    t.disabled = true;
+    if (await write(() => db.doc('holdings/' + id).set(body), 'Saved')) closeModal(); else t.disabled = false;
+    return;
+  }
+  if (a === 'hold-del') { if (!confirmTwice(t, 'hd' + t.dataset.id)) return; if (await write(() => db.doc('holdings/' + t.dataset.id).delete(), 'Deleted')) closeModal(); return; }
   if (a === 'tx-new') { txModal.k = 'expense'; return txModal('expense'); }
   if (a === 'txk') return txModal(t.dataset.k);
   if (a === 'tx-export') { try { await exportTx(); } catch (e) { if (!/cancel/i.test(e?.message || '')) toast('Could not export: ' + (e?.message || e)); } return; }
@@ -1305,7 +1462,7 @@ $('#fab').addEventListener('click', () => { if (tab === 'transactions') { txModa
 document.addEventListener('input', ev => { if (ev.target.id === 'tx-q') { txQ = ev.target.value; applyTxFilter(); } });
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && $('#modal').innerHTML) closeModal();
-  if (e.key === 'Enter' && e.target.matches?.('[data-loan]')) { selLoan = e.target.dataset.loan; showSched = false; loans._scroll = true; render(); }
+  if (e.key === 'Enter' && e.target.matches?.('[data-loan]')) { selLoan = e.target.dataset.loan; showSched = true; loans._scroll = true; render(); }
 });
 
 document.addEventListener('change', async ev => {
@@ -1322,8 +1479,8 @@ document.addEventListener('change', async ev => {
     const f = el.dataset.loanF, raw = el.value.trim(), v = raw === '' ? null : num(raw);
     if (f === 'rate' && v !== null && (v < 0 || v > 60)) { toast('Enter the yearly interest rate as a percentage, e.g. 8.5.'); el.value = c.loan?.rate || ''; return; }
     if ((c.loan?.[f] ?? null) === v) return;
-    const patch = f === 'outstanding' ? { outstanding: v, asOf: todayD } : { rate: v };
-    await write(() => db.doc('categories/' + c.id).update({ loan: patch }), f === 'outstanding' ? 'Balance saved as of today' : 'Interest rate saved');
+    const patch = f === 'outstanding' ? { outstanding: v, asOf: todayD } : f === 'emi' ? { emi: v } : { rate: v };
+    await write(() => db.doc('categories/' + c.id).update({ loan: patch }), f === 'outstanding' ? 'Balance saved as of today' : f === 'emi' ? 'EMI saved' : 'Interest rate saved');
     return;
   }
   if (el.id === 'tx-status') { txStatus = el.value; return applyTxFilter(); }
@@ -1366,7 +1523,7 @@ document.addEventListener('change', async ev => {
     await write(() => db.doc('settings/main').set({ ...S.settings, start, end }), 'Plan horizon updated');
   }
 });
-window.addEventListener('resize', () => { if (tab === 'overview' && C) drawChart($('#chart')); });
+window.addEventListener('resize', () => { if (!C) return; if (tab === 'overview') drawChart($('#chart')); if (tab === 'networth') render(); });
 
 // ---------- boot ----------
 (async () => {
@@ -1382,7 +1539,7 @@ window.addEventListener('resize', () => { if (tab === 'overview' && C) drawChart
   if (!db) { render(); return; }
   const onErr = e => { if (e?.code !== 'revoked') toast('Lost live updates. Reload the page to reconnect.'); };
   db.doc('settings/main').onSnapshot(s => { S.settings = s.exists ? s.data() : null; S.ready.add('settings'); schedule(); }, onErr);
-  for (const col of ['accounts', 'categories', 'entries', 'businesses']) {
+  for (const col of ['accounts', 'categories', 'entries', 'businesses', 'holdings']) {
     db.collection(col).onSnapshot(q => { const o = {}; q.docs.forEach(d => o[d.id] = { ...d.data(), id: d.id }); S[col] = o; S.ready.add(col); schedule(); }, onErr);
   }
   db.collection('transfers').onSnapshot(q => { const o = {}; q.docs.forEach(d => { const x = d.data(); o[x.month || d.id] = x; }); S.transfers = o; schedule(); }, onErr);
