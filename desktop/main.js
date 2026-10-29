@@ -60,7 +60,7 @@ let win = null;
 function createWindow() {
   win = new BrowserWindow({
     width: 1440, height: 920, minWidth: 900, minHeight: 600,
-    title: 'Family Cashbook', backgroundColor: '#F5F8F7', icon: path.join(__dirname, 'www', 'icons', 'icon-512.png'),
+    title: 'ReadyTrove Family Money', backgroundColor: '#F5F8F7', icon: path.join(__dirname, 'www', 'icons', 'icon-512.png'),
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, spellcheck: false },
   });
   let closeApproved=false,closing=false,closeTimer;

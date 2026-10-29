@@ -1,7 +1,7 @@
 {
-  "name": "Family Cashbook",
-  "short_name": "Cashbook",
-  "description": "Plan, track and forecast your family's money.",
+  "name": "ReadyTrove Family Money",
+  "short_name": "Family Money",
+  "description": "Your money today. Your family's tomorrow.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

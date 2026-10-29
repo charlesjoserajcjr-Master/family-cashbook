@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 const cap = JSON.parse(fs.readFileSync('capacitor.config.json', 'utf8'));
 cap.appId = 'com.familycashbook.preview';
-cap.appName = 'Family Cashbook Preview';
+cap.appName = 'ReadyTrove Family Money Preview';
 fs.writeFileSync('capacitor.config.json', JSON.stringify(cap, null, 2) + '\n');
 const desk = JSON.parse(fs.readFileSync('desktop/package.json', 'utf8'));
 desk.productName = 'Family Cashbook Preview';

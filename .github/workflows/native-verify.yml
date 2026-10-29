@@ -1,7 +1,7 @@
 name: Native preview verification (no publishing)
 on:
   pull_request:
-    paths: ['www/**', 'desktop/**', 'scripts/**', 'package*.json', 'tests/**', '.github/workflows/native-verify.yml']
+    paths: ['assets/**', 'capacitor.config.json', 'www/**', 'desktop/**', 'scripts/**', 'package*.json', 'tests/**', '.github/workflows/native-verify.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -19,6 +19,7 @@ jobs:
       - run: npm run prepare-web
       - run: node scripts/prepare-preview.mjs
       - run: npx cap add android
+      - run: npx capacitor-assets generate --android
       - run: npm run patch-android
       - run: npx cap sync android
       - run: chmod +x android/gradlew
@@ -86,6 +87,7 @@ jobs:
       - run: npm run prepare-web
       - run: node scripts/prepare-preview.mjs
       - run: npx cap add ios
+      - run: npx capacitor-assets generate --ios
       - run: npx cap sync ios
       - name: Compile simulator preview without signing
         shell: bash

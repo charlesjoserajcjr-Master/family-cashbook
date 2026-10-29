@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#F5F8F7">
 <meta name="color-scheme" content="light">
+<meta name="description" content="ReadyTrove Family Money — Your money today. Your family’s tomorrow.">
 <style>
 :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);-webkit-text-size-adjust:100%}
 body{margin:0;font:14px system-ui,-apple-system,"Segoe UI",sans-serif}
@@ -12,7 +13,7 @@ img{max-width:100%}
 [hidden]{display:none!important}
 </style>
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="icons/icon-192.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <script src="config.js"></script>
@@ -35,7 +36,7 @@ img{max-width:100%}
 <link rel="stylesheet" href="vendor/fonts/instrument-sans/400.css">
 <link rel="stylesheet" href="vendor/fonts/instrument-sans/500.css">
 <link rel="stylesheet" href="vendor/fonts/instrument-sans/600.css">
-<title>Family Cashbook</title>
+<title>ReadyTrove Family Money</title>
 <style>
 /* Layout: app shell — header + scrollable tab bar, one working view at a time, floating "Add entry" for family members */
 :root{
@@ -55,7 +56,7 @@ body{color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.45;fo
 .wrap{max-width:1360px;margin:0 auto;padding-inline:16px;padding-block:0 96px}
 header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--bg);border-bottom:1px solid var(--line)}
 .top-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-block:14px 8px;max-width:1360px;margin:0 auto;padding-inline:16px}
-.brand{display:flex;align-items:baseline;gap:10px;min-width:0}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}.brand-mark{width:48px;height:48px;object-fit:contain;flex:none;border-radius:12px}.brand-copy{display:flex;flex-direction:column;min-width:0}.brand-owner{font-size:11px;font-weight:600;color:var(--accent);letter-spacing:.04em}
 .brand h1{font-family:var(--display);font-weight:700;font-size:22px;letter-spacing:-.01em;margin:0}
 .brand .sub{color:var(--muted);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .who{display:flex;align-items:center;gap:8px;color:var(--ink2);font-size:12.5px;flex:none;max-width:40%;overflow:hidden;white-space:nowrap}
@@ -67,7 +68,7 @@ header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;backgroun
 .syncchip[data-s="error"]::before,.syncchip[data-s="needs-tap"]::before{background:var(--bad)}
 .syncchip[data-s="offline"]::before{background:var(--warn)}
 @media (max-width:560px){.who{display:none}}
-@media (max-width:560px){.brand{flex-direction:column;align-items:flex-start;gap:0}.brand h1{font-size:20px}.brand .sub{max-width:100%}}
+@media (max-width:560px){.top-row{flex-wrap:wrap}.top-row>.row{margin-left:60px;max-width:calc(100% - 60px)}.brand{flex-direction:row;align-items:center;gap:12px}.brand h1{font-size:20px}.brand .sub{max-width:100%}}
 .who img{width:26px;height:26px;border-radius:50%}
 nav.tabs{display:flex;gap:4px;overflow-x:auto;max-width:1360px;margin:0 auto;padding-inline:12px;scrollbar-width:none}
 nav.tabs::-webkit-scrollbar{display:none}
@@ -258,7 +259,7 @@ label.f{display:grid;gap:4px;font-size:12.5px;color:var(--ink2)}
 <body>
 <header class="top">
   <div class="top-row">
-    <div class="brand"><h1>Family Cashbook</h1><span class="sub" id="sub">Loading family accounts…</span></div>
+    <div class="brand"><img class="brand-mark" src="icons/icon-192.png" alt="" width="48" height="48"><div class="brand-copy"><span class="brand-owner">ReadyTrove</span><h1>Family Money</h1><span class="sub" id="sub">Loading family accounts…</span></div></div>
     <div class="row" style="flex-wrap:nowrap;gap:10px;min-width:0"><button class="syncchip" id="sync" data-act="companion" hidden></button><div class="who" id="who"></div></div>
   </div>
   <nav class="tabs" role="tablist" id="tabs">
@@ -409,10 +410,10 @@ function render() {
   document.querySelectorAll('#tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === tab));
   $('#fab').hidden = !db || !canWrite || !Object.keys(S.categories).length || tab === 'transactions';
   const v = $('#view');
-  if (!db) { v.innerHTML = `<div class="panel empty" style="margin-top:24px"><b>The shared ledger isn't reachable here</b>Open Family Cashbook from Claude while signed in to see and update the family's accounts.</div>`; return; }
+  if (!db) { v.innerHTML = `<div class="panel empty" style="margin-top:24px"><b>The shared ledger isn't reachable here</b>Open ReadyTrove Family Money from Claude while signed in to see and update the family's accounts.</div>`; return; }
   if (!st && S.ready.has('settings')) {
     const D = window.__cashbookLocal?.drive, drive = D && D.configured();
-    v.innerHTML = `<div class="panel empty" style="margin-top:24px"><b>${drive ? 'Welcome to Family Cashbook' : 'Start your family ledger'}</b>${drive ? 'Already using Family Cashbook on another device? Load your ledger from Google Drive. New here? Start a fresh ledger, then connect Drive in Accounts &amp; setup.' : 'Add your bank accounts, then plan monthly income, EMIs and expenses. You can record actual activity and compare it with your plan.'}
+    v.innerHTML = `<div class="panel empty" style="margin-top:24px"><b>${drive ? 'Welcome to ReadyTrove Family Money' : 'Start your family ledger'}</b>${drive ? 'Already using ReadyTrove Family Money on another device? Load your ledger from Google Drive. New here? Start a fresh ledger, then connect Drive in Accounts &amp; setup.' : 'Add your bank accounts, then plan monthly income, EMIs and expenses. You can record actual activity and compare it with your plan.'}
       <div class="row" style="margin-top:14px;justify-content:center">${drive ? `<button class="btn primary" data-act="drive-connect">${D.status === 'syncing' ? 'Loading…' : 'Load my ledger from Google Drive'}</button>` : ''}<button class="btn" data-act="companion">Phone & laptop sync</button>${canWrite ? `<button class="btn ${drive ? '' : 'primary'}" data-act="startledger">Start a new ledger</button>` : '<span class="dim">Ask the family head to set it up.</span>'}</div>
       ${drive && D.error ? `<p class="hint" style="margin:10px auto 0;color:var(--bad)">${esc(D.error)}</p>` : ''}</div>`;
     return;
@@ -1173,8 +1174,8 @@ function setup() {
   <div class="panel pad"><div class="row" style="gap:8px 16px;margin-bottom:10px">
     <span class="pill ${P.installed ? 'ok' : 'act'}">${P.installed ? 'Installed as an app' : 'Opens offline after the first visit'}</span>
     <span class="pill ${P.persisted ? 'ok' : P.persisted === false ? 'low' : 'act'}">${P.persisted ? 'Storage protected' : P.persisted === false ? 'Storage not protected yet' : 'Checking storage…'}</span></div>
-    <p class="hint" style="margin:0 0 10px">${P.installed ? 'Family Cashbook opens from its own icon, with or without internet.' : 'Install it to open Family Cashbook from its own icon, with or without internet.'} ${P.persisted ? 'The browser will keep your ledger even when disk space runs low.' : 'Installing the app usually lets the browser protect your ledger from automatic clean-up.'} Clearing the browser's history or site data still deletes it, so keep backups.</p>
-    <div class="row">${P.canInstall ? '<button class="btn primary" data-act="pwa-install">Install Family Cashbook</button>' : P.installed ? '' : '<span class="hint" style="margin:0">To install: in Chrome, open the ⋮ menu → <b>Cast, save and share → Install page as app</b>. In Edge: ⋯ menu → <b>Apps → Install this site as an app</b>.</span>'}${P.persisted === false ? '<button class="btn" data-act="pwa-protect">Protect storage</button>' : ''}</div></div></div>`; })() : ''}
+    <p class="hint" style="margin:0 0 10px">${P.installed ? 'ReadyTrove Family Money opens from its own icon, with or without internet.' : 'Install it to open Family Cashbook from its own icon, with or without internet.'} ${P.persisted ? 'The browser will keep your ledger even when disk space runs low.' : 'Installing the app usually lets the browser protect your ledger from automatic clean-up.'} Clearing the browser's history or site data still deletes it, so keep backups.</p>
+    <div class="row">${P.canInstall ? '<button class="btn primary" data-act="pwa-install">Install ReadyTrove Family Money</button>' : P.installed ? '' : '<span class="hint" style="margin:0">To install: in Chrome, open the ⋮ menu → <b>Cast, save and share → Install page as app</b>. In Edge: ⋯ menu → <b>Apps → Install this site as an app</b>.</span>'}${P.persisted === false ? '<button class="btn" data-act="pwa-protect">Protect storage</button>' : ''}</div></div></div>`; })() : ''}
   ${window.__cashbookLocal ? `<div class="section"><h2>Backup</h2>
   <div class="panel pad"><p class="hint" style="margin:0 0 10px">${window.__cashbookLocal?.drive?.connected ? 'Google Drive keeps your ledger safe. A backup file is an extra copy you can keep anywhere.' : (window.__cashbookLocal?.desktop ? 'The app already keeps daily copies in the Backups folder. A backup file is an extra copy you can keep anywhere, such as a USB stick or email.' : 'Without Drive sync your ledger is stored only on this device. Save a backup regularly so you can restore it on a new device.')}</p>
   <div class="row"><button class="btn primary" data-act="backup">Save a backup</button><label class="btn" for="restore-file">Restore from a backup</label><input type="file" id="restore-file" accept=".json,application/json" hidden></div></div></div>`
@@ -1325,7 +1326,7 @@ document.addEventListener('click', async ev => {
     if (!confirmTwice(t, 'driveoff')) return;
     await window.__cashbookLocal.drive.disconnect(); toast('This device is disconnected. Your ledger stays here and in Drive.'); return render();
   }
-  if (a === 'pwa-install') { const ok = await window.__cashbookLocal.pwa.install(); if (ok) toast('Installed. Open Family Cashbook from its icon, even offline.'); return render(); }
+  if (a === 'pwa-install') { const ok = await window.__cashbookLocal.pwa.install(); if (ok) toast('Installed. Open ReadyTrove Family Money from its icon, even offline.'); return render(); }
   if (a === 'pwa-protect') { await window.__cashbookLocal.pwa.protect(); toast(window.__cashbookLocal.pwa.persisted ? 'Storage protected' : 'The browser declined for now. Installing the app usually allows it.'); return render(); }
   if (a === 'desk-open') { window.__cashbookLocal.desktop.openFolder(); return; }
   if (a === 'desk-choose') { const r = await window.__cashbookLocal.desktop.chooseFolder(); if (r) { toast(r.reload ? 'Using the ledger already in that folder.' : 'Your ledger now saves to the new folder.'); render(); } return; }

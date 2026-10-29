@@ -1,6 +1,6 @@
 {
   "appId": "com.familycashbook.app",
-  "appName": "Family Cashbook",
+  "appName": "ReadyTrove Family Money",
   "webDir": "www",
   "android": {
     "allowMixedContent": false,
