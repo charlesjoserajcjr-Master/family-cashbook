@@ -2,7 +2,8 @@
 // If a font package is missing, the app still builds and falls back to the phone's system font.
 import fs from "node:fs";
 import path from "node:path";
-const root = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "..");
+import { fileURLToPath } from "node:url";
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const nm = p => path.join(root, "node_modules", p);
 const out = p => path.join(root, "www", "vendor", p);
 const fonts = { "bricolage-grotesque": ["500", "700"], "instrument-sans": ["400", "500", "600"] };
@@ -22,6 +23,7 @@ for (const [name, weights] of Object.entries(fonts)) {
 const indexPath = path.join(root, "www", "index.html");
 let html = fs.readFileSync(indexPath, "utf8");
 html = html.replace(/<link[^>]+fonts\.(googleapis|gstatic)\.com[^>]*>\s*/g, "");
+html = html.replace(/<link[^>]+href="vendor\/fonts\/[^"]+"[^>]*>\s*/g, "");
 html = html.replace("<title>", links + "<title>");
 fs.writeFileSync(indexPath, html);
 console.log("prepare-web done; bundled font stylesheets:", (links.match(/<link/g) || []).length);

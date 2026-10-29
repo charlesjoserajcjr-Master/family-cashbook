@@ -1,6 +1,8 @@
 // Gives the app page a small, safe bridge to its data file. Nothing else on the computer is exposed.
 const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('cashbookDesktop', {
+  onBeforeClose: callback => ipcRenderer.on('data:before-close',()=>callback()),
+  closeReady: ok => ipcRenderer.send('data:close-ready',ok===true),
   read: () => ipcRenderer.invoke('data:read'),
   write: text => ipcRenderer.invoke('data:write', text),
   writeSync: text => ipcRenderer.sendSync('data:writeSync', text),

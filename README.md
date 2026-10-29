@@ -96,3 +96,21 @@ personal use. Before a public Play Store / App Store release, set the audience t
 | `.github/workflows/` | Android build, upload-key creator, iPhone check build, web app publishing |
 
 Never put real financial data or backup files in this repository.
+
+## Continuing the planning/reliability draft
+
+This branch is an implementation draft. Read [docs/IMPLEMENTATION-STATUS.md](docs/IMPLEMENTATION-STATUS.md) for completed work, exact test evidence and release blockers; [docs/MIGRATION.md](docs/MIGRATION.md) before using a copied ledger; and [docs/SERVICE-DESIGN.md](docs/SERVICE-DESIGN.md) for the proposed authenticated family/billing boundary.
+
+With Node 22+:
+
+```sh
+npm install
+npm test
+npm run prepare-web
+npx playwright install chromium
+npm run test:browser
+```
+
+`npm test` uses synthetic records and needs no merchant credentials. Browser checks produce images in `test-artifacts/`. Native release builds and real Drive OAuth/conditional writes need separate validation. The added `verify.yml` workflow runs on pull requests and does not publish an app.
+
+Working-ledger encryption is optional and uses an unrecoverable passphrase. Earlier plaintext backups remain plaintext. Lock is manual; independent family identities, private-account authorization, full multi-currency and real purchase validation are not implemented by this draft. Do not describe the Plans preview or device IDs as those features.

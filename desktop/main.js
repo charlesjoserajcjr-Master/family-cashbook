@@ -31,7 +31,7 @@ function dailyBackup(text) {
 }
 function saveData(text) { safeWrite(dataFile(), text); dailyBackup(text); }
 
-ipcMain.handle('data:read', () => { try { return fs.readFileSync(dataFile(), 'utf8'); } catch (e) { return null; } });
+ipcMain.handle('data:read', () => { try { return fs.readFileSync(dataFile(), 'utf8'); } catch(e){if(e.code==='ENOENT')return null;throw e;} });
 ipcMain.handle('data:write', (e, text) => { saveData(text); return true; });
 ipcMain.on('data:writeSync', (e, text) => { try { saveData(text); e.returnValue = true; } catch (err) { e.returnValue = false; } });
 ipcMain.handle('data:info', () => ({ dir: dataDir(), file: dataFile(), backups: path.join(dataDir(), 'Backups') }));
@@ -61,6 +61,9 @@ function createWindow() {
     title: 'Family Cashbook', backgroundColor: '#F4F5F8', icon: path.join(__dirname, 'www', 'icons', 'icon-512.png'),
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, spellcheck: false },
   });
+  let closeApproved=false,closing=false,closeTimer;
+  win.on('close',e=>{if(closeApproved)return;e.preventDefault();if(closing)return;closing=true;win.webContents.send('data:before-close');closeTimer=setTimeout(()=>{closing=false;dialog.showErrorBox('Close postponed','The ledger has not acknowledged a completed save. Keep the app open and export or retry your changes.');},30000);});
+  ipcMain.on('data:close-ready',(e,ok)=>{if(e.sender!==win.webContents||!closing)return;clearTimeout(closeTimer);closing=false;if(ok){closeApproved=true;win.close();}});
   win.loadFile(path.join(__dirname, 'www', 'index.html'));
   // Links to websites open in the normal browser, never inside the app.
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/i.test(url)) shell.openExternal(url); return { action: 'deny' }; });

@@ -18,6 +18,11 @@
 
   let docs = new Map();   // path -> data
   let times = new Map();  // path -> last change (ms)
+  let fieldMeta = {}, conflicts = {}, loadError = null, saveError = null;
+  let deviceId=crypto.randomUUID();try{deviceId=localStorage.getItem('fcb-device')||deviceId;localStorage.setItem('fcb-device',deviceId);}catch{}
+  let ledgerPassword=null, lockedEnvelope=null, pendingWrites=0, generation=0,rawSource=null,sourcePreserved=false;
+  const assertWritable=()=>{if(loadError)throw Error('Saved ledger could not be read. Preserve the source file and restore a backup.');if(lockedEnvelope)throw Error('Unlock the ledger first.');};
+  function revision(){let max=Date.now();for(const t of [...times.values(),...tomb.values()])max=Math.max(max,t+1);for(const fields of Object.values(fieldMeta))for(const r of Object.values(fields))max=Math.max(max,r.time+1);return max;}
   let tomb = new Map();   // path -> deletion time (ms)
   const docSubs = new Map(), colSubs = new Map();
   const clone = o => JSON.parse(JSON.stringify(o));
@@ -26,6 +31,8 @@
 
   // ---------- local file ----------
   function load(o) {
+    o=CashbookSchema.validate(o,{legacy:true});
+    fieldMeta = o.fieldMeta || {}; conflicts = o.conflicts || {};
     docs = new Map(Object.entries(o.docs || (o.app ? {} : o)));
     times = new Map(Object.entries(o.times || {}));
     tomb = new Map(Object.entries(o.tomb || {}));
@@ -34,22 +41,29 @@
   async function readAll() {
     try {
       const txt = DESK ? await DESK.read() : FS ? (await FS.readFile({ path: FILE, directory: 'DATA', encoding: 'utf8' })).data : localStorage.getItem(FILE);
-      if (txt) load(JSON.parse(txt));
-    } catch (e) { /* first run */ }
+      rawSource=txt; if(txt){if(txt.length>30e6)throw Error('Ledger is too large.');const parsed=JSON.parse(txt);if(parsed.app==='family-cashbook-encrypted')lockedEnvelope=txt;else load(parsed);}
+    } catch (e) { if (e?.code !== 'ENOENT' && !/does not exist|not found/i.test(e?.message || '')) { loadError = e; window.dispatchEvent(new CustomEvent('cashbook-save', { detail: {state:'error', message:'Unable to read the saved ledger. Restore a backup before editing.'} })); } }
   }
   const ready = readAll();
-  // Desktop: never lose the last change when the window closes.
-  if (DESK) window.addEventListener('beforeunload', () => { if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; DESK.writeSync(JSON.stringify(snapshot())); } });
-  const snapshot = () => ({ app: 'family-cashbook', version: 2, savedAt: new Date().toISOString(), docs: Object.fromEntries(docs), times: Object.fromEntries(times), tomb: Object.fromEntries(tomb) });
-  let saveTimer = null;
-  function persist() {
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(async () => {
-      saveTimer = null;
-      const txt = JSON.stringify(snapshot());
-      try { if (DESK) await DESK.write(txt); else if (FS) await FS.writeFile({ path: FILE, directory: 'DATA', encoding: 'utf8', data: txt, recursive: true }); else localStorage.setItem(FILE, txt); }
-      catch (e) { console.error('Could not save data', e); }
-    }, 200);
+  // Electron waits for this asynchronous queue before closing. Browsers cannot await unload.
+  if(DESK?.onBeforeClose)DESK.onBeforeClose(async()=>{try{await ready;document.activeElement?.blur?.();await new Promise(resolve=>setTimeout(resolve,0));while(window.CashbookUI?.busy)await new Promise(resolve=>setTimeout(resolve,20));await saveQueue;if(saveError||loadError)throw Error('Unresolved storage error');DESK.closeReady(true);}catch{saveStatus('error','Close cancelled: export or retry the unsaved changes.');DESK.closeReady(false);}});
+  window.addEventListener('beforeunload',e=>{if(pendingWrites||saveError){e.preventDefault();e.returnValue='';}});
+  const snapshot = () => ({ app: 'family-cashbook', version: 2, savedAt: new Date().toISOString(), docs: Object.fromEntries(docs), times: Object.fromEntries(times), tomb: Object.fromEntries(tomb), fieldMeta, conflicts });
+  let saveTimer = null, saveQueue = Promise.resolve();
+  function saveStatus(state,message=''){window.dispatchEvent(new CustomEvent('cashbook-save',{detail:{state,message}}));}
+  function persist(){
+    if(loadError)return Promise.reject(Error('Saved ledger could not be read. Restore a known backup first.'));
+    assertWritable();const copy=clone(CashbookSchema.validate(snapshot())),password=ledgerPassword;pendingWrites++;meta.hasPendingWrites=true;saveStatus('saving');
+    const job=saveQueue.catch(()=>{}).then(async()=>{
+      try{
+        let txt=JSON.stringify(copy);if(txt.length>CashbookSchema.MAX_BYTES)throw Error('Ledger exceeds the storage size limit. Export and archive records.');if(password)txt=await CashbookSecurity.seal(txt,password);
+        if(DESK)await DESK.write(txt);
+        else if(FS){await FS.writeFile({path:FILE+'.saving',directory:'DATA',encoding:'utf8',data:txt,recursive:true});await FS.rename({from:FILE+'.saving',to:FILE,directory:'DATA',toDirectory:'DATA'});}
+        else localStorage.setItem(FILE,txt);
+        saveError=null;
+      }catch(e){saveError=e;saveStatus('error','Changes could not be saved. Keep this app open, export a backup, then retry.');throw e;}finally{pendingWrites--;meta.hasPendingWrites=pendingWrites>0;if(!saveError)saveStatus(pendingWrites?'saving':'saved');}
+    });
+    saveQueue=job;return job;
   }
 
   // ---------- database API (same shape the app uses on Claude) ----------
@@ -70,16 +84,19 @@
   const isObj = v => v && typeof v === 'object' && !Array.isArray(v);
   function merge(a, b) { const o = { ...a }; for (const [k, v] of Object.entries(b)) o[k] = isObj(v) && isObj(o[k]) ? merge(o[k], v) : v; return o; }
   const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
-  function changed(p) { times.set(p, now()); persist(); notify(p); Drive.dirty(); }
+  async function changed(p,before) {
+    const t=revision();fieldMeta[p]=CashbookSync.stamp(p,before,docs.get(p),fieldMeta[p],t,deviceId,times.get(p)||1);generation++;
+    times.set(p,t); notify(p); await persist(); Drive.dirty();
+  }
 
   function docRef(p) {
-    if (p.split('/').length % 2) throw new TypeError('document paths need an even number of segments: ' + p);
+    CashbookSchema.path(p);if (p.split('/').length % 2) throw new TypeError('document paths need an even number of segments: ' + p);
     return {
       id: p.split('/').pop(), path: p,
       async get() { await ready; return snapDoc(p); },
-      async set(data) { await ready; if (!isObj(data)) return bad('document body must be an object'); docs.set(p, clone(data)); tomb.delete(p); changed(p); },
-      async update(data) { await ready; if (!docs.has(p)) return bad('document does not exist'); docs.set(p, merge(docs.get(p), clone(data))); changed(p); },
-      async delete() { await ready; if (!docs.has(p)) return; docs.delete(p); times.delete(p); tomb.set(p, now()); persist(); notify(p); Drive.dirty(); },
+      async set(data) { await ready; assertWritable();CashbookSchema.safe(data);if (!isObj(data)) return bad('document body must be an object'); const before=docs.get(p);CashbookSchema.validate({app:"family-cashbook",docs:{[p]:data}});docs.set(p, clone(data)); tomb.delete(p); await changed(p,before); },
+      async update(data) { await ready; assertWritable();CashbookSchema.safe(data);if(!isObj(data))return bad('document body must be an object');if (!docs.has(p)) return bad('document does not exist'); const before=clone(docs.get(p)); const candidate=merge(docs.get(p),clone(data));CashbookSchema.validate({app:"family-cashbook",docs:{[p]:candidate}});docs.set(p,candidate); await changed(p,before); },
+      async delete() { await ready; assertWritable();if (!docs.has(p)) return;const t=revision();docs.delete(p);times.delete(p);tomb.set(p,t);generation++;notify(p); await persist(); Drive.dirty(); },
       onSnapshot(next) { const s = docSubs.get(p) || new Set(); s.add(next); docSubs.set(p, s); ready.then(() => s.has(next) && next(snapDoc(p))); return () => s.delete(next); },
       collection(sub) { return colRef(p + '/' + sub); },
     };
@@ -95,10 +112,18 @@
       where() { return this; }, orderBy() { return this; }, limit() { return this; },
     };
   }
-  const db = { doc: docRef, collection: colRef };
+  async function applyBatch(ops){
+    await ready;assertWritable();if(!Array.isArray(ops)||ops.length>1000)throw Error('Invalid batch.');
+    const original=clone(snapshot());
+    for(const op of ops){CashbookSchema.path(op.path);CashbookSchema.safe(op.data);if(!['set','update','delete'].includes(op.type))throw Error('Invalid batch operation.');if(op.type==='update'&&!docs.has(op.path))throw Error('Record does not exist.');}
+    try{for(const op of ops){const p=op.path,before=docs.get(p),t=revision();if(op.type==='delete'){docs.delete(p);times.delete(p);tomb.set(p,t);}else{docs.set(p,op.type==='update'?merge(before,clone(op.data)):clone(op.data));fieldMeta[p]=CashbookSync.stamp(p,before,docs.get(p),fieldMeta[p],t,deviceId,times.get(p)||1);times.set(p,t);tomb.delete(p);}}CashbookSchema.validate(snapshot());}catch(e){load(original);throw e;}
+    generation++;notifyMany(ops.map(o=>o.path));await persist();Drive.dirty();
+  }
+  const db = { doc: docRef, collection: colRef, applyBatch };
 
   // Merge another copy (from Drive or a backup) into this one, item by item: newest change wins.
-  function mergeIn(o, preferRemote) {
+  async function mergeIn(o) {
+    assertWritable();o=CashbookSchema.validate(o);const previous=JSON.stringify(snapshot());
     const rDocs = o.docs || {}, rTimes = o.times || {}, rTomb = o.tomb || {};
     const touched = [];
     const paths = new Set([...docs.keys(), ...tomb.keys(), ...Object.keys(rDocs), ...Object.keys(rTomb)]);
@@ -106,12 +131,26 @@
     for (const p of paths) {
       const lT = Math.max(times.get(p) || 0, tomb.get(p) || 0);
       const rDocT = rDocs[p] ? (rTimes[p] || 1) : 0, rDelT = rTomb[p] || 0, rT = Math.max(rDocT, rDelT);
-      if (rT > lT || (preferRemote && rT && rT !== lT)) {
+      if (docs.has(p) && rDocs[p] && !tomb.has(p) && !(rDelT >= rDocT && rDelT)) {
+        const result=CashbookSync.merge(p,docs.get(p),rDocs[p],fieldMeta[p],o.fieldMeta?.[p],times.get(p)||1,rTimes[p]||1);
+        for(const c of result.conflicts){
+          const id=JSON.stringify([p,c.field,c.localRevision,c.remoteRevision]);
+          conflicts[id]={path:p,...c};
+        }
+        if(JSON.stringify(result.doc)!==JSON.stringify(docs.get(p))){docs.set(p,result.doc);touched.push(p);}
+        fieldMeta[p]=result.meta;
+        times.set(p,Math.max(lT,rT));
+        if(JSON.stringify(result.doc)!==JSON.stringify(rDocs[p]))localNewer=true;
+        continue;
+      }
+      if (rT > lT || (rT===lT&&rDelT>0&&!tomb.has(p))) {
         if (rDelT >= rDocT) { if (docs.has(p)) touched.push(p); docs.delete(p); times.delete(p); tomb.set(p, rDelT); }
-        else { docs.set(p, clone(rDocs[p])); times.set(p, rTimes[p] || 1); tomb.delete(p); touched.push(p); }
+        else { docs.set(p, clone(rDocs[p])); fieldMeta[p]=o.fieldMeta?.[p]||{}; times.set(p, rTimes[p] || 1); tomb.delete(p); touched.push(p); }
       } else if (lT > rT) localNewer = true;
     }
-    if (touched.length) { persist(); notifyMany(touched); }
+    for(const [id,c]of Object.entries(o.conflicts||{}))if(!conflicts[id])conflicts[id]=c;
+    conflicts=Object.fromEntries(Object.entries(conflicts).sort(([a],[b])=>a.localeCompare(b)).slice(-200));
+    if(JSON.stringify(snapshot())!==previous){await persist();notifyMany(touched);}
     return { touched: touched.length, localNewer };
   }
 
@@ -120,7 +159,8 @@
     const KEY = 'fcb-drive';
     let st = {};
     try { st = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) {}
-    const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} };
+    const save = () => { try { const {token,exp,...publicState}=st;localStorage.setItem(KEY, JSON.stringify(publicState)); } catch (e) {} };
+    delete st.token;delete st.exp;
     let status = st.connected ? 'idle' : 'off', lastError = '', dirtyFlag = false, timer = null, busy = null;
     const listeners = new Set();
     const emit = () => listeners.forEach(fn => { try { fn(); } catch (e) {} });
@@ -156,7 +196,8 @@
     async function api(url, opts = {}, interactive) {
       const tok = await getToken(interactive);
       const r = await fetch(url, { ...opts, headers: { ...(opts.headers || {}), Authorization: 'Bearer ' + tok } });
-      if (r.status === 401) { st.token = ''; st.exp = 0; save(); if (!NATIVE && !interactive) { const e = new Error('Google sign-in expired. Tap Sync now to reconnect.'); e.needsTap = true; throw e; } return api(url, opts, interactive); }
+      if (r.status === 401 && !opts._retried) { st.token = ''; st.exp = 0; save(); if (!NATIVE && !interactive) { const e = new Error('Google sign-in expired. Tap Sync now to reconnect.'); e.needsTap = true; throw e; } return api(url, {...opts,_retried:true}, interactive); }
+      if(r.status===412){const e=Error('Drive changed during sync. Retry to merge the latest copy.');e.precondition=true;throw e;}
       if (!r.ok) throw new Error('Google Drive error ' + r.status + ': ' + (await r.text()).slice(0, 160));
       return r;
     }
@@ -164,14 +205,16 @@
       if (st.fileId) return st.fileId;
       const q = encodeURIComponent(`name='${DRIVE_NAME}' and trashed=false`);
       const r = await (await api(`https://www.googleapis.com/drive/v3/files?q=${q}&spaces=drive&fields=files(id,version,modifiedTime)&orderBy=modifiedTime desc`, {}, interactive)).json();
+      if(r.files?.length>1)throw Error('Multiple Drive ledgers found. Preserve each copy and resolve duplicates before syncing.');
       if (r.files && r.files[0]) { st.fileId = r.files[0].id; save(); }
       return st.fileId || null;
     }
-    async function upload(interactive) {
-      const body = JSON.stringify(snapshot());
+    async function upload(interactive,etag) {
+      let body=JSON.stringify(snapshot());if(ledgerPassword)body=await CashbookSecurity.seal(body,ledgerPassword);
       let r;
       if (st.fileId) {
-        r = await api(`https://www.googleapis.com/upload/drive/v3/files/${st.fileId}?uploadType=media&fields=id,version,modifiedTime`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body }, interactive);
+        if(!etag)throw Error('Drive did not supply a safe write precondition. Local data is saved; remote upload stopped. Export a backup before resolving sync.');
+        r = await api(`https://www.googleapis.com/upload/drive/v3/files/${st.fileId}?uploadType=media&fields=id,version,modifiedTime`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'If-Match':etag }, body }, interactive);
       } else {
         const b = 'fcb' + Math.random().toString(36).slice(2);
         const multipart = `--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ name: DRIVE_NAME, mimeType: 'application/json', description: 'Family Cashbook ledger. Edited by the Family Cashbook app; please do not edit by hand.' })}\r\n--${b}\r\nContent-Type: application/json\r\n\r\n${body}\r\n--${b}--`;
@@ -180,26 +223,26 @@
       const j = await r.json(); st.fileId = j.id; st.version = j.version; save();
     }
     async function syncOnce(interactive) {
-      await ready;
-      if (!configured()) throw new Error('Google Drive sync is not set up in this build yet.');
-      if (!navigator.onLine) { set('offline'); return; }
-      set('syncing');
-      const id = await findFile(interactive);
-      let needUpload = dirtyFlag || !id;
-      if (id) {
-        const m = await (await api(`https://www.googleapis.com/drive/v3/files/${id}?fields=version,modifiedTime,trashed`, {}, interactive)).json();
-        if (m.trashed) { st.fileId = ''; save(); needUpload = true; }
-        else if (String(m.version) !== String(st.version)) {
-          const remote = await (await api(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`, {}, interactive)).json();
-          const r = mergeIn(remote, !st.lastSync); // a device's first sync: Drive's copy wins any clash
-          st.version = m.version; save();
-          if (r.localNewer) needUpload = true;
+      await ready;assertWritable();if(saveError)throw Error('Retry the local save before syncing.');await saveQueue;
+      if(!configured())throw Error('Google Drive sync is not set up in this build yet.');
+      if(!navigator.onLine){set('offline');return;}set('syncing');
+      // Always re-read after a lost acknowledgement or restart. No first-sync override.
+      for(let attempt=0;attempt<3;attempt++){
+        st.fileId='';const id=await findFile(interactive);let needUpload=dirtyFlag||!id,etag=null;
+        if(id){
+          const response=await api('https://www.googleapis.com/drive/v3/files/'+id+'?alt=media',{},interactive);
+          etag=response.headers.get('ETag');let raw=await response.text();
+          if(raw.length>30e6)throw Error('Remote ledger is too large.');
+          if(JSON.parse(raw).app==='family-cashbook-encrypted'){
+            if(!ledgerPassword)throw Error('Enable and unlock ledger encryption with the shared passphrase before syncing this encrypted copy.');
+            raw=await CashbookSecurity.open(raw,ledgerPassword);
+          }
+          const result=await mergeIn(CashbookSchema.parse(raw));needUpload=needUpload||result.localNewer;
         }
+        const sentGeneration=generation;
+        try{if(needUpload)await upload(interactive,etag);}catch(e){dirtyFlag=true;if(e.precondition&&attempt<2)continue;throw e;}
+        dirtyFlag=generation!==sentGeneration;st.connected=true;st.lastSync=now();save();set(dirtyFlag?'idle':'synced');return;
       }
-      dirtyFlag = false;
-      if (needUpload) await upload(interactive);
-      st.connected = true; st.lastSync = now(); save();
-      set('synced');
     }
     function sync(interactive) {
       if (busy) return busy.then(() => dirtyFlag ? sync(interactive) : undefined);
@@ -225,9 +268,10 @@
   setInterval(() => { if (document.visibilityState === 'visible') Drive.background(); }, 5 * 60000);
 
   // ---------- backup files ----------
-  async function exportData() {
-    await ready;
-    const txt = JSON.stringify(snapshot(), null, 1);
+  async function exportData(password) {
+    await ready;if(lockedEnvelope)throw Error('Unlock before exporting.');password=password||ledgerPassword;
+    let txt = JSON.stringify(snapshot(), null, 1);
+    if(password)txt=await CashbookSecurity.seal(txt,password);
     const name = 'family-cashbook-backup-' + new Date().toISOString().slice(0, 10) + '.json';
     if (DESK) return (await DESK.saveFile(name, txt)) ? 'saved' : 'cancelled';
     const Share = Plug('Share');
@@ -239,25 +283,33 @@
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([txt], { type: 'application/json' })); a.download = name; a.click();
     return 'downloaded';
   }
-  async function importData(text) {
-    const o = JSON.parse(text);
+  async function importData(text,password) {
+    if(JSON.parse(text)?.app==='family-cashbook-encrypted')text=await CashbookSecurity.open(text,password||'');
+    const o = CashbookSchema.parse(text);
     if (!o || o.app !== 'family-cashbook' || !isObj(o.docs)) throw new Error('This is not a Family Cashbook backup file.');
     await ready;
+    // Preserve the current snapshot before replacing it.
+    if(lockedEnvelope)throw Error('Unlock before restoring.');
+    const recovery=loadError?null:await exportData(ledgerPassword||undefined);
+    if(recovery==='cancelled')throw Error('Restore cancelled; the current ledger was kept.');
+    if(loadError&&!sourcePreserved)throw Error('Export the unreadable source before restoring.');
+    loadError=null;
+    const priorDocs=new Map(docs),priorMeta=fieldMeta,priorRevision=revision();fieldMeta=o.fieldMeta||{};conflicts=o.conflicts||{};
     // A restore replaces this device's ledger; it is then marked as the newest version everywhere.
     const touched = new Set([...docs.keys(), ...Object.keys(o.docs)]);
-    const t = now();
+    const t = Math.max(priorRevision,revision(),...Object.values(o.times||{}),...Object.values(o.fieldMeta||{}).flatMap(x=>Object.values(x).map(r=>r.time)))+1;
     for (const p of docs.keys()) if (!o.docs[p]) tomb.set(p, t);
     docs = new Map(Object.entries(o.docs)); times = new Map([...docs.keys()].map(k => [k, t]));
-    for (const k of docs.keys()) tomb.delete(k);
-    persist(); notifyMany([...touched]); Drive.dirty();
+    for(const k of docs.keys()){tomb.delete(k);const fresh=CashbookSync.stamp(k,priorDocs.get(k)||{},docs.get(k),{},t,deviceId);for(const field of new Set([...Object.keys(priorMeta[k]||{}),...Object.keys(o.fieldMeta?.[k]||{})]))if(!(field in fresh))fresh[field]={time:t,device:deviceId,deleted:true};fieldMeta[k]=fresh;}
+    generation++;await persist(); notifyMany([...touched]); Drive.dirty();
   }
 
   const avatar = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="#3340A0"/><circle cx="16" cy="13" r="5" fill="#fff"/><path d="M6 27c2-5 6-7 10-7s8 2 10 7" fill="#fff"/></svg>');
   const user = {
     isOwner: async () => true, canEdit: async () => true, can: async () => true,
-    id: async () => 'this-phone', name: async () => '', email: async () => null, avatarUrl: async () => avatar,
-    me: async () => ({ id: 'this-phone', name: '', avatarUrl: avatar, color: '#3340A0', email: null, isOwner: true, canEdit: true }),
-    profiles: async ids => Object.fromEntries([].concat(ids).map(id => [id, { id, name: '', avatarUrl: avatar, color: '#3340A0', email: null, isMe: id === 'this-phone', guest: false }])),
+    id: async () => deviceId, name: async () => '', email: async () => null, avatarUrl: async () => avatar,
+    me: async () => ({ id: deviceId, name: '', avatarUrl: avatar, color: '#3340A0', email: null, isOwner: true, canEdit: true }),
+    profiles: async ids => Object.fromEntries([].concat(ids).map(id => [id, { id, name: '', avatarUrl: avatar, color: '#3340A0', email: null, isMe: id === deviceId, guest: false }])),
     search: async () => [],
   };
 
@@ -296,9 +348,13 @@
 
   const desktop = DESK ? {
     info: () => DESK.info(), openFolder: () => DESK.openFolder(),
-    async chooseFolder() { if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; await DESK.write(JSON.stringify(snapshot())); } const r = await DESK.chooseFolder(); if (r && r.reload) location.reload(); return r; },
+    async chooseFolder() { await saveQueue;if(saveError||loadError)throw Error('Resolve storage errors first.');if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; await DESK.write(JSON.stringify(snapshot())); } const r = await DESK.chooseFolder(); if (r && r.reload) location.reload(); return r; },
   } : null;
 
-  window.__cashbookLocal = { exportData, importData, exportFile, drive: Drive, pwa, desktop };
+  async function unlock(password){await ready;if(!lockedEnvelope)return;const plain=await CashbookSecurity.open(lockedEnvelope,password);const o=CashbookSchema.parse(plain);load(o);ledgerPassword=password;lockedEnvelope=null;notifyMany([...new Set([...docSubs.keys(),...docs.keys()])]);for(const [c,fns]of colSubs)for(const fn of fns)fn(snapCol(c));window.dispatchEvent(new Event('cashbook-unlock'));}
+  async function encryptLedger(password){await ready;assertWritable();if(Drive.connected)throw Error('Disconnect Drive and preserve a backup before enabling encryption.');if(password.length<12)throw Error('Use at least 12 characters.');await saveQueue;ledgerPassword=password;await persist();}
+  async function lock(){await ready;await saveQueue;if(saveError)throw Error('Retry the save before locking.');if(!ledgerPassword)throw Error('Enable working-ledger encryption first.');location.reload();}
+  async function exportSource(){if(!rawSource)throw Error("No saved source is available.");const r=await exportFile("family-cashbook-unreadable-source-"+Date.now()+".json",rawSource,"application/json");if(r===false)throw Error("Export cancelled.");sourcePreserved=true;}
+  window.__cashbookLocal = { exportSource,get readError(){return loadError;},unlock,encryptLedger,lock,get locked(){return !!lockedEnvelope;},get encrypted(){return !!(lockedEnvelope||ledgerPassword);},flush:async()=>{await saveQueue;if(saveError)throw saveError;}, retrySave:()=>persist(), get saveError(){return saveError||loadError;}, get conflicts(){return conflicts;}, clearConflict:async id=>{delete conflicts[id];await persist();}, exportData, importData, exportFile, drive: Drive, pwa, desktop };
   window.claude = { use: async name => name === 'db' ? db : name === 'user' ? user : null };
 })();
