@@ -34,7 +34,7 @@ App Store signing and upload get added once the Apple Developer account (paid ye
 
 ## Windows desktop app (fully offline)
 
-Every change to the app builds a Windows version automatically (**Actions → Build Windows desktop app**).
+Windows builds are manual (**Actions → Build Windows desktop app → Run workflow**). Leave **publish** off for build-only checks; publishing requires an explicit main-branch run with **publish** enabled.
 On the **Releases** page, open the newest *Windows desktop app* and download
 `Family-Cashbook-Setup-….exe` (installs with Start-menu and desktop shortcuts) or the Portable `.exe`
 (runs without installing, e.g. from a USB stick). It needs no internet at all. The ledger is saved as
@@ -125,3 +125,7 @@ Use `npm ci`, `npm test`, `npm run prepare-web`, and `npm run test:browser`. The
 ## Personal phone companion
 
 See [Phone quick entry and laptop sync](docs/PHONE-SYNC.md) for encrypted pairing, offline entry, OAuth setup and current browser/native limits. Google OAuth remains unconfigured.
+
+## Merge and publishing are separate
+
+Merging to main does not deploy Pages or publish Android/Windows releases. Publishing workflows are manual-only and require the publish switch on the main branch. PR checks remain build/test only. Keep publishing off until physical-device and provider setup checks are complete.

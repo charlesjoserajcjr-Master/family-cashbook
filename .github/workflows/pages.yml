@@ -3,10 +3,13 @@ name: Publish web app (laptop and tablet)
 # Publishes the app as a website on GitHub Pages so it can be used in any browser.
 # The website holds only the app; each person's data stays in their own Google Drive.
 on:
-  push:
-    branches: [main]
-    paths: ["www/**", "scripts/prepare-web.mjs", ".github/workflows/pages.yml"]
   workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish this main-branch build publicly (leave off for build-only checks)'
+        type: boolean
+        required: true
+        default: false
 
 permissions:
   contents: read
@@ -19,6 +22,7 @@ concurrency:
 
 jobs:
   deploy:
+    if: ${{ inputs.publish && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     environment:
       name: github-pages

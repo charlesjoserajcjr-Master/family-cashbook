@@ -168,7 +168,7 @@ async function action(t){
  const a=t.dataset.feature;
  if(a==='source-export'){await window.__cashbookLocal.exportSource();A.toast('Source exported. You can now restore a verified backup.');return;}
  if(a==='recover-restore'){const f=$('#recover-file').files[0];if(!f)throw Error('Choose a backup.');if(!confirm('Replace the unreadable ledger with this backup? Export the original source first.'))return;await window.__cashbookLocal.importData(await f.text(),$('#recover-pass').value);location.reload();return;}
- if(a==='unlock'){await window.__cashbookLocal.unlock($('#unlock-pass').value);return;}
+ if(a==='unlock'){await window.__cashbookLocal.unlock($('#unlock-pass').value);$('#unlock-pass')?.blur();return;}
  if(a==='sec-enable'){const p=$('#sec-ledger').value;if(p!==$('#sec-ledger-confirm').value)throw Error('Passphrases do not match.');if(!confirm('Enable encryption for future saved copies? Older plaintext backups remain readable. A lost passphrase cannot be recovered.'))return;await window.__cashbookLocal.encryptLedger(p);$('#sec-ledger').value='';$('#sec-ledger-confirm').value='';A.toast('Working ledger encrypted. Keep the passphrase separately.');return;}
  if(a==='sec-lock'){await window.__cashbookLocal.lock();return;}
  if(a==='cancel'){A.close();return;}

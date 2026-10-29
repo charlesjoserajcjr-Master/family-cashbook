@@ -2,10 +2,13 @@ name: Build Windows desktop app
 
 # Builds Family Cashbook for Windows (installer + portable .exe) and puts both on the Releases page.
 on:
-  push:
-    branches: [main]
-    paths: ["www/**", "desktop/**", "scripts/prepare-web.mjs", ".github/workflows/desktop.yml"]
   workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish this main-branch build publicly (leave off for build-only checks)'
+        type: boolean
+        required: true
+        default: false
 
 permissions:
   contents: write
@@ -34,6 +37,7 @@ jobs:
         working-directory: desktop
         run: npx electron-builder --win --publish never
       - name: Put the Windows app on the Releases page
+        if: ${{ inputs.publish && github.ref == 'refs/heads/main' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
