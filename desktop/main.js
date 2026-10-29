@@ -11,7 +11,9 @@ if (!app.requestSingleInstanceLock()) { app.quit(); }
 const cfgFile = () => path.join(app.getPath('userData'), 'settings.json');
 const readCfg = () => { try { return JSON.parse(fs.readFileSync(cfgFile(), 'utf8')); } catch (e) { return {}; } };
 const writeCfg = c => { fs.mkdirSync(path.dirname(cfgFile()), { recursive: true }); fs.writeFileSync(cfgFile(), JSON.stringify(c, null, 1)); };
-const dataDir = () => readCfg().dataDir || path.join(app.getPath('documents'), 'Family Cashbook');
+const testRoot=process.env.CASHBOOK_TEST_MODE==='1'&&!app.isPackaged?process.env.CASHBOOK_TEST_DATA_DIR:null;
+if(testRoot){fs.mkdirSync(path.join(path.resolve(testRoot),'settings'),{recursive:true});app.setPath('userData',path.join(path.resolve(testRoot),'settings'));}
+const dataDir = () => testRoot?path.join(path.resolve(testRoot),'ledger'):readCfg().dataDir || path.join(app.getPath('documents'), app.getName()==='Family Cashbook Preview'?'Family Cashbook Preview':'Family Cashbook');
 const dataFile = (dir = dataDir()) => path.join(dir, 'family-cashbook-data.json');
 
 function safeWrite(file, text) {

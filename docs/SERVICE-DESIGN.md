@@ -1,3 +1,5 @@
+> Historical planning-stage document. The current file-based family/currency/billing continuation is described in [CONTINUATION-STATUS.md](CONTINUATION-STATUS.md), which supersedes the pending-feature statements below.
+
 # Proposed service boundary — not yet implemented
 
 The current application is a personal offline ledger. It cannot securely create independent family identities by adding membership fields to its local JSON or by hiding accounts.

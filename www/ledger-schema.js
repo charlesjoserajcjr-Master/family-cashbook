@@ -31,6 +31,7 @@ function validate(o,{legacy=false}={}){
  for(const key of ['times','tomb'])if(o[key]!=null){if(!object(o[key]))throw Error('Invalid revisions.');for(const [p,t] of Object.entries(o[key])){path(p);if(!Number.isSafeInteger(t)||t<0)throw Error('Invalid revision time.');}}
  if(o.fieldMeta!=null){if(!object(o.fieldMeta))throw Error('Invalid field revisions.');for(const [p,fields]of Object.entries(o.fieldMeta)){path(p);if(!object(fields))throw Error('Invalid field revisions.');for(const rev of Object.values(fields))if(!object(rev)||!Number.isSafeInteger(rev.time)||rev.time<0||typeof rev.device!=='string'||(rev.deleted!=null&&typeof rev.deleted!=='boolean'))throw Error('Invalid field revision.');}}
  if(o.conflicts!=null&&!object(o.conflicts))throw Error('Invalid conflict history.');
+ if(Object.keys(o.docs).some(p=>p.startsWith('fx'))){const X=typeof require==='function'?require('./currency'):globalThis.CashbookCurrency;if(!X)throw Error('Currency module is unavailable.');X.validateState(X.fromDocs(o.docs));}
  return o;
 }
 function parse(text,options){if(typeof text!=='string'||text.length>MAX_BYTES)throw Error('Ledger is too large.');return validate(JSON.parse(text),options);}

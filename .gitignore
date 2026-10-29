@@ -8,3 +8,8 @@ out/
 .DS_Store
 
 test-artifacts/
+
+server/data/
+*.sqlite*
+.env
+.env.*

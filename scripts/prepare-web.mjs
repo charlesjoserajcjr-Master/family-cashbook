@@ -27,3 +27,7 @@ html = html.replace(/<link[^>]+href="vendor\/fonts\/[^"]+"[^>]*>\s*/g, "");
 html = html.replace("<title>", links + "<title>");
 fs.writeFileSync(indexPath, html);
 console.log("prepare-web done; bundled font stylesheets:", (links.match(/<link/g) || []).length);
+
+const { build } = await import("esbuild");
+await build({entryPoints:[path.join(root,"scripts/native-plugins.js")],bundle:true,format:"iife",platform:"browser",target:"es2020",minify:true,outfile:out("native-plugins.js")});
+console.log("Native plugin bridge bundled.");

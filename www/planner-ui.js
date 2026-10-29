@@ -27,7 +27,8 @@ function recorded(){
  const actual=A.actualComputed();for(const a of C().accs)v[a.id]=actual.rows[a.id]?.[m]?.begin??Number(a.opening||0);
  for(const e of Object.values(S().entries))if(e.month===m&&e.date<=date){const c=S().categories[e.categoryId];if(c&&v[e.accountId||c.account]!=null)v[e.accountId||c.account]+=(c.type==='income'?1:-1)*Number(e.amount);}
  for(const r of Object.values(S().transfers))for(const t of r.items||[]){const a=t.actual;if(a?.date?.slice(0,7)===m&&a.date<=date){v[a.from]-=Number(a.amount);v[a.to]+=Number(a.amount);}}
- return {values:v,cash:C().accs.filter(a=>a.kind!=='Credit').reduce((n,a)=>n+(v[a.id]||0),0)};
+ for(const t of Object.values(S().fxTransfers||{}))if(t.status!=='planned'&&t.date.slice(0,7)===m&&t.date<=date){if(t.from.startsWith('legacy:'))v[t.from.slice(7)]-=Number(t.sourceAmount)+Number(t.fee||0);if(t.to.startsWith('legacy:'))v[t.to.slice(7)]+=Number(t.receivedAmount);}
+ const foreign=window.CashbookCurrency?.compute(S(),date);return {values:v,cash:C().accs.filter(a=>a.kind!=='Credit').reduce((n,a)=>n+(v[a.id]||0),0)+(foreign?.liquidINR||0),fxMissing:foreign?.missing||[]};
 }
 function afterRender(tab){
  const nav=$('#tabs');if(nav)nav.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===(['overview','transactions','plan'].includes(tab)?tab:'more')));
@@ -36,7 +37,7 @@ function afterRender(tab){
  const el=document.createElement('div');el.id='feature-toolbar';el.className='row';el.style.marginTop='12px';
  if(tab==='overview'){
   const r=recorded();
-  el.innerHTML='<div class="panel pad"><b>Recorded cash today: '+fmt(r.cash)+'</b><div class="hint">Calculated from opening balances and recorded transactions. Forecast cards below include expected future activity.</div></div>'+btn('calendar','Upcoming bills')+btn('scenarios','Compare a scenario');
+  el.innerHTML='<div class="panel pad"><b>Recorded cash today: '+(r.fxMissing.length?'FX rates needed':fmt(r.cash))+'</b><div class="hint">Calculated from opening balances and recorded transactions. Forecast cards below include expected future activity.</div></div>'+btn('calendar','Upcoming bills')+btn('scenarios','Compare a scenario');
  }else if(tab==='plan')el.innerHTML=btn('scenarios','What-if scenarios')+btn('goals','Savings goals')+btn('contract','Contract income')+btn('calendar','Bill dates');
  else if(tab==='transactions')el.innerHTML=btn('import','Import statement')+btn('month','Monthly review');
  else if(tab==='month'&&!A.locked(currentMonth()))el.innerHTML=btn('close-month','Review and close '+currentMonth())+btn('complete','Complete a category');
@@ -47,7 +48,7 @@ function menu(){
  return panel('More','<p>Choose the tools you need. Your data stays available without a subscription.</p><div class="tool-grid">'+[
  ['month','Monthly review'],['loans','Loans & EMIs'],['networth','Net worth'],['business','Businesses'],['setup','Accounts & backup'],
  ['calendar','Bills calendar'],['goals','Savings goals'],['scenarios','What-if scenarios'],['prepay','Loan prepayment'],['import','Statement import'],
- ['contract','Contract income & currency conversion'],['card','Add credit card'],['security','Privacy & encrypted backups'],['conflicts','Sync history'],['plans','Plans & family access']
+ ['contract','Contract income & currency conversion'],['card','Add credit card'],['security','Privacy & encrypted backups'],['conflicts','Sync history'],['plans','Plans & family access'],['family','Encrypted family file sync'],['currency','Multi-currency accounts & remittances'],['billing','Purchases & restore']
  ].map(([k,v])=>btn(k,v)).join('')+'</div>');
 }
 function scenarios(){
@@ -60,6 +61,7 @@ function scenarios(){
  (saved.length?'<h3>Saved comparisons</h3>'+saved.map(x=>btn('sc-load',esc(x.name),'data-id="'+x.id+'"')).join(''):''));
 }
 function scenarioInput(){
+ if(C().fxMissing?.length)throw Error('Record missing FX valuation rates before comparing scenarios.');
  const from=$('#sc-from').value,to=$('#sc-to').value;
  if(!allMonths().includes(from)||!allMonths().includes(to)||to<from)throw Error('Choose open months inside your plan.');
  const inc=num('#sc-income'),exp=num('#sc-expense');
@@ -91,8 +93,9 @@ function calendar(){
  for(const e of Object.values(S().entries))if(e.month===m){const c=S().categories[e.categoryId];if(c)events.push({date:e.date,amount:Number(e.amount),[c.type==='income'?'to':'from']:e.accountId||c.account});}
  for(const c of cats){const actual=Object.values(S().entries).filter(e=>e.month===m&&e.categoryId===c.id);const p=D.categoryProjection({planned:c.amounts?.[m],actual:actual.reduce((n,e)=>n+Number(e.amount),0),hasActual:!!actual.length,closed:A.locked(m),complete:c.completedMonths?.[m],mode:c.forecastMode||'budget'});if(p.remaining)events.push({date:due(c),amount:p.remaining,[c.type==='income'?'to':'from']:c.account});}
  for(const [pm,d]of Object.entries(S().transfers))for(const t of d.items||[]){const x=t.actual;if(x?.date?.slice(0,7)===m)events.push(x);else if(!x&&pm===m&&!A.locked(m))events.push({date:m+'-01',amount:Number(t.amount),from:t.from,to:t.to});}
+ for(const t of Object.values(S().fxTransfers||{}))if(t.date.slice(0,7)===m&&(t.status!=='planned'||!A.locked(m))){if(t.from.startsWith('legacy:'))events.push({date:t.date,from:t.from.slice(7),amount:Number(t.sourceAmount)+Number(t.fee||0)});if(t.to.startsWith('legacy:'))events.push({date:t.date,to:t.to.slice(7),amount:Number(t.receivedAmount)});}
  const daily=D.dailyCash({month:m,opening,events,minimums,creditAccounts:C().accs.filter(a=>a.kind==='Credit').map(a=>a.id)}),low=daily.reduce((a,b)=>a.cash<b.cash?a:b),risk=daily.find(r=>r.below.length);
- return panel('Daily cash forecast · '+m,'<p>Estimated from recorded transactions and the remaining monthly plan. Future opening balances can include earlier projections. Missing dates assume spending on day 1 and income on the last day; planned transfers use day 1. These assumptions can change the result.</p><p>Lowest projected liquid cash: <b>'+fmt(low.cash)+' on '+low.date+'</b>. '+(risk?'First account below its minimum: '+risk.date+' ('+risk.below.map(id=>esc(S().accounts[id]?.name)).join(', ')+').':'No projected minimum-balance shortfall.')+'</p>'+rowsTable(['Plan row','Assumed date',''],cats.map(c=>[esc(c.name),c.dueDay?due(c):due(c)+' (assumed)',btn('due-edit','Set date','data-id="'+c.id+'"')]))+rowsTable(['Date','Liquid cash',...C().accs.map(a=>esc(a.name))],daily.map(r=>[r.date,fmt(r.cash),...C().accs.map(a=>fmt(r.balances[a.id]))])));
+ return panel('Daily cash forecast · '+m,'<p>This table covers legacy INR accounts; use Currency accounts for foreign balances and budgets. Estimated from recorded transactions and the remaining monthly plan. Future opening balances can include earlier projections. Missing dates assume spending on day 1 and income on the last day; planned transfers use day 1. These assumptions can change the result.</p><p>Lowest projected liquid cash: <b>'+fmt(low.cash)+' on '+low.date+'</b>. '+(risk?'First account below its minimum: '+risk.date+' ('+risk.below.map(id=>esc(S().accounts[id]?.name)).join(', ')+').':'No projected minimum-balance shortfall.')+'</p>'+rowsTable(['Plan row','Assumed date',''],cats.map(c=>[esc(c.name),c.dueDay?due(c):due(c)+' (assumed)',btn('due-edit','Set date','data-id="'+c.id+'"')]))+rowsTable(['Date','Liquid cash',...C().accs.map(a=>esc(a.name))],daily.map(r=>[r.date,fmt(r.cash),...C().accs.map(a=>fmt(r.balances[a.id]))])));
 }
 function importScreen(){
  return panel('Import a bank statement','<p>Use CSV with Date, Description, Amount (expenses negative), or Date, Description, Debit, Credit. Dates: YYYY-MM-DD or DD/MM/YYYY. Import up to 200 rows per batch. Every row is reviewed before saving.</p>'+
@@ -152,12 +155,12 @@ function conflicts(){
 }
 function plans(){
  return panel('Plans and family access','<p><b>Preview release — all current tools are available.</b> No payment will be collected in this build.</p>'+rowsTable(['Proposed plan','Price','Planned package'],[['Free','₹0','Manual tracking, monthly review, backups and exports'],['Plus','₹999/year or ₹129/month','Extended planning, scenarios, imports, business and net-worth tools']])+
- '<p>Independent family invitations and private/shared accounts require an authenticated sharing service. Current Drive sync connects devices using the same Google account; it does not create separate family logins. Do not share your Google password.</p><p>Existing records and exports remain available. Purchase activation, restoration, cancellation and offline entitlement checks must be configured and validated before a paid launch.</p>');
+ '<p>Encrypted family file exchange uses separate member keys, signed grants and recipient-scoped files. The owner reviews editor proposals; viewers cannot submit changes. Current personal Drive sync is separate and still uses the same Google account. Do not share your Google password.</p><p>Existing records and exports remain available. Purchase and restore adapters with server verification are available in Purchases & restore. Merchant/store accounts and real sandbox validation are still required before activation.</p>');
 }
 function more(){
  if(screen==='import'&&importDirty&&$('#im-file'))return;
  const active=$('#view');if(active&&active.dataset.screen===screen){const values={};for(const e of active.querySelectorAll('input[id],select[id],textarea[id]'))if(e.type!=='file'&&e.type!=='password')values[e.id]={value:e.value,checked:e.checked};drafts.set(screen,values);}
- const views={menu,scenarios,goals,prepay,calendar,import:importScreen,contract,security,conflicts,plans};$('#view').innerHTML=(views[screen]||menu)();$('#view').dataset.screen=screen;for(const [key,value]of Object.entries(drafts.get(screen)||{})){const e=document.getElementById(key);if(e){e.value=value.value;e.checked=value.checked;}}}
+ const views={menu,scenarios,goals,prepay,calendar,import:importScreen,contract,security,conflicts,plans,family:()=>CashbookFamilyUI.render(),currency:()=>CashbookCurrencyUI.render(),billing:()=>CashbookBillingUI.render()};$('#view').innerHTML=(views[screen]||menu)();$('#view').dataset.screen=screen;for(const [key,value]of Object.entries(drafts.get(screen)||{})){const e=document.getElementById(key);if(e){e.value=value.value;e.checked=value.checked;}}}
 function onboard(){
  A.modal('<h2>Start with the essentials</h2><p>Add a starting balance and monthly income and spending. You can refine individual categories later.</p><div class="form">'+field('Account name','ob-name','text','Main savings')+field('Opening balance at start of month (₹)','ob-balance','number',0)+field('Monthly income (₹)','ob-income','number',0,'min="0"')+field('Monthly household budget (₹)','ob-expense','number',0,'min="0"')+field('Start month','ob-start','month',today().slice(0,7))+'</div><div class="row">'+btn('ob-save','Create my plan')+btn('cancel','Cancel')+'</div>');
 }
@@ -170,7 +173,7 @@ async function action(t){
  if(a==='sec-lock'){await window.__cashbookLocal.lock();return;}
  if(a==='cancel'){A.close();return;}
  if(['month','loans','networth','business','setup'].includes(a)){A.go(a);return;}
- if(['menu','scenarios','goals','prepay','calendar','import','contract','security','conflicts','plans'].includes(a)){navigate(a);return;}
+ if(['menu','scenarios','goals','prepay','calendar','import','contract','security','conflicts','plans','family','currency','billing'].includes(a)){navigate(a);return;}
  if(a==='sc-calc'||a==='sc-save'){const x=scenarioInput();scenarioResult(x);if(a==='sc-save'){await save('features/'+id(),{...x,type:'scenario'});A.toast('Scenario saved.');}return;}
  if(a==='sc-load'){const x=S().features[t.dataset.id];for(const [key,v]of Object.entries({'name':x.name,'from':x.from,'to':x.to,'income':(x.incomeFactor-1)*100,'expense':(x.expenseFactor-1)*100,'extra':x.monthlyExtra,'once':x.oneOff,'month':x.oneOffMonth}))$('#sc-'+key).value=v;scenarioResult(x);return;}
  if(a==='goal-new'||a==='goal-edit'){goalModal(S().features[t.dataset.id]);return;}
@@ -209,17 +212,19 @@ async function action(t){
   if(m>=today().slice(0,7))throw Error('Close a month after it has ended.');
   const missing=C().accs.filter(x=>S().balances[m]?.values?.[x.id]==null||S().balances[m]?.values?.[x.id]==='');
   if(missing.length)throw Error('Enter bank balances for: '+missing.map(x=>x.name).join(', '));
+  const end=m+'-'+new Date(+m.slice(0,4),+m.slice(5,7),0).getDate();const fxMissing=window.CashbookCurrency?.reconciliationStatus(S(),m).filter(r=>!r.valid)||[];if(fxMissing.length)throw Error('Reconcile changed/missing currency accounts first: '+fxMissing.map(r=>S().fxAccounts[r.accountId].name).join(', '));
   const actual=A.actualComputed();const reviews=C().accs.map(a=>{const r=actual.rows[a.id][m];return [esc(a.name),fmt(r.calc),fmt(r.actual),fmt(r.diff)];});
   A.modal('<h2>Close '+m+'?</h2><p>Expected balances below use recorded activity only. Check each account independently. Unconfirmed plans will be excluded from the closed month.</p>'+rowsTable(['Account','From recorded activity','Confirmed balance','Difference'],reviews)+field('Reason for any differences','close-reason')+'<label><input type="checkbox" id="close-reviewed"> I reviewed every account balance and any unrecorded difference.</label><p>This locks the month. Only the latest closed month can be reopened.</p>'+btn('close-confirm','Confirm and close','data-month="'+m+'"')+cancel());return;
  }
  if(a==='close-confirm'){
   const m=t.dataset.month;if(m!==allMonths()[0]||m>=today().slice(0,7))throw Error('Month changed; review again.');
+  const fxEnd=m+'-'+new Date(+m.slice(0,4),+m.slice(5,7),0).getDate();if(window.CashbookCurrency?.reconciliationStatus(S(),m).some(r=>!r.valid))throw Error('Currency reconciliation changed. Review every account again.');
   if(!$('#close-reviewed').checked)throw Error('Review and confirm every account first.');
   const actual=A.actualComputed(),accounts=C().accs.map(a=>({accountId:a.id,expected:actual.rows[a.id][m].calc,confirmed:Number(S().balances[m]?.values?.[a.id]),difference:actual.rows[a.id][m].diff}));
-  if(!accounts.length||accounts.some(r=>!Number.isFinite(r.confirmed)||S().balances[m]?.values?.[r.accountId]==null||S().balances[m]?.values?.[r.accountId]===''))throw Error('Enter every account balance.');
+  if((!accounts.length&&!Object.keys(S().fxAccounts||{}).length)||accounts.some(r=>!Number.isFinite(r.confirmed)||S().balances[m]?.values?.[r.accountId]==null||S().balances[m]?.values?.[r.accountId]===''))throw Error('Enter every account balance.');
   const reason=$('#close-reason').value.trim();if(accounts.some(r=>Math.abs(r.difference)>0.005)&&!reason)throw Error('Explain the differences before closing.');
   const stamp=new Date().toISOString();if(!A.db().applyBatch)throw Error('This adapter does not support atomic month review.');
-  await A.db().applyBatch([{type:'set',path:'features/'+id(),data:{type:'audit',action:'month-close',month:m,by:A.uid(),identityType:'local-device',at:stamp,accounts,reason}},{type:'update',path:'settings/main',data:{closedThrough:m,closedAt:stamp,closedBy:A.uid()}}]);A.close();A.go('month');return;
+  await A.db().applyBatch([{type:'set',path:'features/'+id(),data:{type:'audit',action:'month-close',month:m,by:A.uid(),identityType:'local-device',at:stamp,accounts,reason,currencyReconciliations:Object.values(S().fxBalances||{}).filter(r=>r.date.slice(0,7)===m)}},{type:'update',path:'settings/main',data:{closedThrough:m,closedAt:stamp,closedBy:A.uid()}}]);A.close();A.go('month');return;
  }
  if(a==='ob-save'){
   if(S().settings)throw Error('A ledger already exists. Use Accounts & setup to edit it.');
@@ -248,5 +253,5 @@ document.addEventListener('change',e=>{if(e.target.id==='im-file')importDirty=tr
 function recoveryScreen(){
  $('#view').innerHTML=panel('Saved ledger could not be read','<p>Editing is blocked to protect the original data. Export the unreadable source first, then restore a known backup. Nothing is overwritten until the backup validates.</p>'+btn('source-export','Export original source')+'<label class="f">Verified backup<input type="file" id="recover-file" accept=".json"></label>'+field('Passphrase, for encrypted backups','recover-pass','password')+btn('recover-restore','Restore backup'));$('#fab').hidden=true;
 }
-window.CashbookUI={reset:()=>{screen="menu";},recoveryScreen,attach:api=>A=api,get busy(){return operations>0;},afterRender,more,onboard,lockScreen};
+window.CashbookUI={reset:()=>{screen="menu";},recoveryScreen,attach:api=>{A=api;window.CashbookFamilyUI?.attach(api);window.CashbookCurrencyUI?.attach(api);window.CashbookBillingUI?.attach(api);},get busy(){return operations>0||!!window.CashbookFamilyUI?.busy||!!window.CashbookCurrencyUI?.busy||!!window.CashbookBillingUI?.busy;},afterRender,more,onboard,lockScreen};
 })();

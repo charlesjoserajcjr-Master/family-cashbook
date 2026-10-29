@@ -1,3 +1,5 @@
+> Historical planning-stage document. The current file-based family/currency/billing continuation is described in [CONTINUATION-STATUS.md](CONTINUATION-STATUS.md), which supersedes the pending-feature statements below.
+
 # Implementation status — 29 October 2026
 
 This branch continues the recovered handover overlay on top of main e312982d52f8c12ff06ff048d0cb616564d0b9c9. The overlay was compared with that exact base; unchanged icons, manifests, workflows and platform sources were retained. No AGENTS.md was found in the repository or its applicable parent directories.

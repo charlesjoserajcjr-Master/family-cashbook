@@ -12,7 +12,7 @@
   const CFG = window.CASHBOOK_CONFIG || {};
   const cap = window.Capacitor;
   const NATIVE = !!(cap && cap.isNativePlatform && cap.isNativePlatform());
-  const Plug = n => (cap && cap.Plugins && cap.Plugins[n]) || null;
+  const Plug = n => window.CashbookNative?.[n] || (cap && cap.Plugins && cap.Plugins[n]) || null;
   const FS = NATIVE ? Plug('Filesystem') : null;
   const DESK = window.cashbookDesktop || null; // Windows desktop app: data lives in a normal file
 
@@ -89,14 +89,20 @@
     times.set(p,t); notify(p); await persist(); Drive.dirty();
   }
 
+  async function authorizeLocal(p,before,after){
+    const family=docs.get('family/main');if(family?.mode!=='member')return;
+    if(p==='family/identity')return;
+    const grant=await CashbookFamily.checkGrant(family.grant,family.owner.id);if(grant.role!=='editor')throw Object.assign(Error('This shared ledger is read-only.'),{code:'permission_denied'});
+    CashbookFamily.authorizeChange({path:p,data:after??null},Object.fromEntries(docs),grant,docs.get('settings/main')?.closedThrough||'');
+  }
   function docRef(p) {
     CashbookSchema.path(p);if (p.split('/').length % 2) throw new TypeError('document paths need an even number of segments: ' + p);
     return {
       id: p.split('/').pop(), path: p,
       async get() { await ready; return snapDoc(p); },
-      async set(data) { await ready; assertWritable();CashbookSchema.safe(data);if (!isObj(data)) return bad('document body must be an object'); const before=docs.get(p);CashbookSchema.validate({app:"family-cashbook",docs:{[p]:data}});docs.set(p, clone(data)); tomb.delete(p); await changed(p,before); },
-      async update(data) { await ready; assertWritable();CashbookSchema.safe(data);if(!isObj(data))return bad('document body must be an object');if (!docs.has(p)) return bad('document does not exist'); const before=clone(docs.get(p)); const candidate=merge(docs.get(p),clone(data));CashbookSchema.validate({app:"family-cashbook",docs:{[p]:candidate}});docs.set(p,candidate); await changed(p,before); },
-      async delete() { await ready; assertWritable();if (!docs.has(p)) return;const t=revision();docs.delete(p);times.delete(p);tomb.set(p,t);generation++;notify(p); await persist(); Drive.dirty(); },
+      async set(data) { await ready; assertWritable();CashbookSchema.safe(data);if (!isObj(data)) return bad('document body must be an object'); const before=docs.get(p);CashbookSchema.validate({app:"family-cashbook",docs:{...Object.fromEntries(docs),[p]:data}});await authorizeLocal(p,before,data);docs.set(p, clone(data)); tomb.delete(p); await changed(p,before); },
+      async update(data) { await ready; assertWritable();CashbookSchema.safe(data);if(!isObj(data))return bad('document body must be an object');if (!docs.has(p)) return bad('document does not exist'); const before=clone(docs.get(p)); const candidate=merge(docs.get(p),clone(data));CashbookSchema.validate({app:"family-cashbook",docs:{...Object.fromEntries(docs),[p]:candidate}});await authorizeLocal(p,before,candidate);docs.set(p,candidate); await changed(p,before); },
+      async delete() { await ready; assertWritable();if (!docs.has(p)) return;await authorizeLocal(p,docs.get(p),null);const t=revision();docs.delete(p);times.delete(p);tomb.set(p,t);generation++;notify(p); await persist(); Drive.dirty(); },
       onSnapshot(next) { const s = docSubs.get(p) || new Set(); s.add(next); docSubs.set(p, s); ready.then(() => s.has(next) && next(snapDoc(p))); return () => s.delete(next); },
       collection(sub) { return colRef(p + '/' + sub); },
     };
@@ -114,6 +120,7 @@
   }
   async function applyBatch(ops){
     await ready;assertWritable();if(!Array.isArray(ops)||ops.length>1000)throw Error('Invalid batch.');
+    for(const op of ops)await authorizeLocal(op.path,docs.get(op.path),op.type==='delete'?null:op.type==='update'?merge(docs.get(op.path),op.data):op.data);
     const original=clone(snapshot());
     for(const op of ops){CashbookSchema.path(op.path);CashbookSchema.safe(op.data);if(!['set','update','delete'].includes(op.type))throw Error('Invalid batch operation.');if(op.type==='update'&&!docs.has(op.path))throw Error('Record does not exist.');}
     try{for(const op of ops){const p=op.path,before=docs.get(p),t=revision();if(op.type==='delete'){docs.delete(p);times.delete(p);tomb.set(p,t);}else{docs.set(p,op.type==='update'?merge(before,clone(op.data)):clone(op.data));fieldMeta[p]=CashbookSync.stamp(p,before,docs.get(p),fieldMeta[p],t,deviceId,times.get(p)||1);times.set(p,t);tomb.delete(p);}}CashbookSchema.validate(snapshot());}catch(e){load(original);throw e;}
@@ -223,7 +230,7 @@
       const j = await r.json(); st.fileId = j.id; st.version = j.version; save();
     }
     async function syncOnce(interactive) {
-      await ready;assertWritable();if(saveError)throw Error('Retry the local save before syncing.');await saveQueue;
+      await ready;assertWritable();if(docs.get('family/main'))throw Error('Use signed family file exchange for family ledgers; personal Drive sync is disabled to keep one authoritative roster.');if(saveError)throw Error('Retry the local save before syncing.');await saveQueue;
       if(!configured())throw Error('Google Drive sync is not set up in this build yet.');
       if(!navigator.onLine){set('offline');return;}set('syncing');
       // Always re-read after a lost acknowledgement or restart. No first-sync override.
@@ -288,6 +295,8 @@
     const o = CashbookSchema.parse(text);
     if (!o || o.app !== 'family-cashbook' || !isObj(o.docs)) throw new Error('This is not a Family Cashbook backup file.');
     await ready;
+    // An owner backup must never silently reactivate revoked grants or old proposal sequences.
+    if(o.docs['family/main']?.mode==='owner'){const restored=o.docs['family/main'];o.docs['family/main']={...restored,members:{},sent:{},received:[],epoch:Math.max(restored.epoch||1,docs.get('family/main')?.epoch||1)+1,reinviteRequired:true};}
     // Preserve the current snapshot before replacing it.
     if(lockedEnvelope)throw Error('Unlock before restoring.');
     const recovery=loadError?null:await exportData(ledgerPassword||undefined);
@@ -355,6 +364,11 @@
   async function encryptLedger(password){await ready;assertWritable();if(Drive.connected)throw Error('Disconnect Drive and preserve a backup before enabling encryption.');if(password.length<12)throw Error('Use at least 12 characters.');await saveQueue;ledgerPassword=password;await persist();}
   async function lock(){await ready;await saveQueue;if(saveError)throw Error('Retry the save before locking.');if(!ledgerPassword)throw Error('Enable working-ledger encryption first.');location.reload();}
   async function exportSource(){if(!rawSource)throw Error("No saved source is available.");const r=await exportFile("family-cashbook-unreadable-source-"+Date.now()+".json",rawSource,"application/json");if(r===false)throw Error("Export cancelled.");sourcePreserved=true;}
-  window.__cashbookLocal = { exportSource,get readError(){return loadError;},unlock,encryptLedger,lock,get locked(){return !!lockedEnvelope;},get encrypted(){return !!(lockedEnvelope||ledgerPassword);},flush:async()=>{await saveQueue;if(saveError)throw saveError;}, retrySave:()=>persist(), get saveError(){return saveError||loadError;}, get conflicts(){return conflicts;}, clearConflict:async id=>{delete conflicts[id];await persist();}, exportData, importData, exportFile, drive: Drive, pwa, desktop };
+  async function shareFile(name,text,mime='application/json'){
+    if(NATIVE&&FS&&Plug('Share')){const file=await FS.writeFile({path:name,directory:'CACHE',encoding:'utf8',data:text});await Plug('Share').share({title:'Family Cashbook encrypted file',files:[file.uri],dialogTitle:'Choose WhatsApp, email or another app'});return 'shared';}
+    if(!DESK&&navigator.canShare&&navigator.share){const file=new File([text],name,{type:mime});if(navigator.canShare({files:[file]})){await navigator.share({files:[file],title:'Family Cashbook encrypted file'});return 'shared';}}
+    return exportFile(name,text,mime);
+  }
+  window.__cashbookLocal = {shareFile,getSnapshot:async()=>{await ready;if(lockedEnvelope)throw Error('Unlock first.');return clone(snapshot());}, exportSource,get readError(){return loadError;},unlock,encryptLedger,lock,get locked(){return !!lockedEnvelope;},get encrypted(){return !!(lockedEnvelope||ledgerPassword);},flush:async()=>{await saveQueue;if(saveError)throw saveError;}, retrySave:()=>persist(), get saveError(){return saveError||loadError;}, get conflicts(){return conflicts;}, clearConflict:async id=>{delete conflicts[id];await persist();}, exportData, importData, exportFile, drive: Drive, pwa, desktop };
   window.claude = { use: async name => name === 'db' ? db : name === 'user' ? user : null };
 })();
