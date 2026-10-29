@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#3340A0">
-<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#F5F8F7">
+<meta name="color-scheme" content="light">
 <style>
 :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);-webkit-text-size-adjust:100%}
 body{margin:0;font:14px system-ui,-apple-system,"Segoe UI",sans-serif}
@@ -38,21 +38,15 @@ img{max-width:100%}
 <style>
 /* Layout: app shell — header + scrollable tab bar, one working view at a time, floating "Add entry" for family members */
 :root{
-  --bg:#F4F5F8; --surface:#FFFFFF; --sunk:#EDEFF4; --ink:#1A1D2E; --ink2:#4A5068; --muted:#737a93; --line:#E0E3EB;
-  --accent:#3340A0; --accent-ink:#FFFFFF; --accent-soft:#E7E9F7; --marigold:#C98410;
-  --good:#1D7A4C; --good-soft:#E2F3EA; --warn:#9A6512; --warn-soft:#FBF0DC; --bad:#B8322A; --bad-soft:#FBE6E4;
+  --bg:#F5F8F7; --surface:#FFFFFF; --sunk:#EDF3F1; --ink:#203A36; --ink2:#435E59; --muted:#596F6A; --line:#D7E3DE;
+  --accent:#216B60; --accent-ink:#FFFFFF; --accent-soft:#E3F2ED; --marigold:#946311;
+  --good:#27734D; --good-soft:#E7F4EC; --warn:#896015; --warn-soft:#FFF3D9; --bad:#AE3936; --bad-soft:#FCECE9;
+  color-scheme:light;
   --display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
   --body:"Instrument Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
   --r:10px;
 }
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#10121A; --surface:#191C27; --sunk:#141620; --ink:#ECEEF5; --ink2:#B6BBD0; --muted:#8a90aa; --line:#2A2E3E;
-  --accent:#8F9AF2; --accent-ink:#10121A; --accent-soft:#242848; --marigold:#F0B04A;
-  --good:#58C993; --good-soft:#15291F; --warn:#E6B656; --warn-soft:#2B2413; --bad:#F2786D; --bad-soft:#2E1715; color-scheme:dark}}
-:root[data-theme="dark"]{
-  --bg:#10121A; --surface:#191C27; --sunk:#141620; --ink:#ECEEF5; --ink2:#B6BBD0; --muted:#8a90aa; --line:#2A2E3E;
-  --accent:#8F9AF2; --accent-ink:#10121A; --accent-soft:#242848; --marigold:#F0B04A;
-  --good:#58C993; --good-soft:#15291F; --warn:#E6B656; --warn-soft:#2B2413; --bad:#F2786D; --bad-soft:#2E1715; color-scheme:dark}
+/* Use the light palette consistently, including on devices set to dark mode. */
 
 *{box-sizing:border-box}
 html,body{background:var(--bg)}
