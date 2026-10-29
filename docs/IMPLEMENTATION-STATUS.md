@@ -25,11 +25,11 @@ This branch continues the recovered handover overlay on top of main e312982d52f8
 - **Billing:** Plans remains informational. No checkout, trials, provider entitlement validation, webhook processing, restore purchases, refund/expiry or offline grace integration is implemented or tested. No features are paywalled and existing users keep their data and exports.
 - **Multi-currency ledger:** manual contract salary conversion only; no currency-denominated accounts, transaction FX history or valuation ledger.
 - **Usability:** Simple/Advanced mode, recent transaction defaults, optional summaries/notifications and isolated demo ledger remain to be implemented.
-- **Browser/device verification:** browser acceptance script and PR-only CI added, but neither desktop nor mobile browser flow has executed successfully in this session. Local Edge launch was denied/terminated by the Windows sandbox; app browser-control timed out. No visual screenshots are claimed.
+- **Browser/device verification:** the first GitHub Actions run passed all 31 Node tests and the desktop/mobile-width Chromium flows, with six screenshots. Reviewing those screenshots found that the mobile daily-forecast table expanded the document beyond the viewport. This follow-up constrains grid tracks/panels and adds page-width assertions; those new assertions still need CI after pushing this follow-up. Real native device checks remain pending.
 - **Native builds:** Android, iOS and Windows installers have not been built. Real filesystem rename, suspension/kill/recovery, Electron close and platform encryption support need device tests. iOS signing needs owner setup.
 - **Sync limits:** first-time simultaneous Drive file creation can produce duplicates, which stop sync for recovery. A conditional write is only safe if the real provider honors it. Conflicts are bounded to 200 copies and may include sequential edits. Local conflict dismissals can reappear from another device; no distributed review tombstone is claimed.
 - **Atomicity:** the standalone adapter supports atomic month/setup batches. Another host adapter without applyBatch will reject these actions rather than silently making partial audit/settings changes.
-- **Access:** connector branch creation still returns 403. Normal PowerShell gh login is confirmed by the owner, but Codex's restricted shell cannot access its Windows keyring credential and receives 401. No remote branch, PR, merge or deployment has been created in this session.
+- **Access:** the owner pushed the prepared branch from authenticated PowerShell and opened draft PR #1. Codex attached and verified it; no merge or deployment occurred. Codex's connector/sandbox write limitation remains, so the local follow-up needs the same normal PowerShell push.
 
 ## Verification performed
 
@@ -37,6 +37,6 @@ This branch continues the recovered handover overlay on top of main e312982d52f8
 - All shipped JavaScript and the inline app script compile; included in the tests.
 - `node scripts/prepare-web.mjs`: succeeded with system-font fallback (font dependencies not installed locally).
 - Browser script, desktop source/preload syntax and `git diff --check` checked separately before packaging.
-- Browser checks are **written, not passed**. Run `npm install`, `npx playwright install chromium`, `npm run test:browser` outside the restricted shell, or use the proposed verify workflow after opening the draft PR. That workflow tests only and does not deploy.
+- Initial CI browser flows **passed** at head 5e11ed709e9d480e51920fb05a23890ef8d49049: https://github.com/charlesjoserajcjr-Master/family-cashbook/actions/runs/40828240179 . The job logs report both desktop and mobile flows passed and six screenshots were uploaded. Artifact SHA256: 114a6b75f0588ff780387045042746babd767fb5164990c67393b78a3517b585. Browser checks at that head did not assert page width, so screenshot review exposed the overflow. The new page-width assertions are pending the follow-up push/CI. The verify workflow tests only and does not deploy.
 
 Do not merge until browser/device/sync checks and the pending service scope have been reviewed explicitly. Main-push workflows can publish builds and Pages.
