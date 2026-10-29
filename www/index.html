@@ -28,6 +28,7 @@ img{max-width:100%}
 <script src="currency-ui.js"></script>
 <script src="entitlements.js"></script>
 <script src="billing-ui.js"></script>
+<script src="companion-ui.js"></script>
 <script src="planner-ui.js"></script>
 <link rel="stylesheet" href="vendor/fonts/bricolage-grotesque/500.css">
 <link rel="stylesheet" href="vendor/fonts/bricolage-grotesque/700.css">
@@ -258,7 +259,7 @@ label.f{display:grid;gap:4px;font-size:12.5px;color:var(--ink2)}
 <header class="top">
   <div class="top-row">
     <div class="brand"><h1>Family Cashbook</h1><span class="sub" id="sub">Loading family accounts…</span></div>
-    <div class="row" style="flex-wrap:nowrap;gap:10px;min-width:0"><button class="syncchip" id="sync" data-tab="setup" hidden></button><div class="who" id="who"></div></div>
+    <div class="row" style="flex-wrap:nowrap;gap:10px;min-width:0"><button class="syncchip" id="sync" data-act="companion" hidden></button><div class="who" id="who"></div></div>
   </div>
   <nav class="tabs" role="tablist" id="tabs">
 <button role="tab" data-tab="overview" aria-selected="true">Home</button>
@@ -391,8 +392,8 @@ function syncLabel(D) {
 }
 function updateSync() {
   const D = window.__cashbookLocal?.drive, el = $('#sync'); if (!el) return;
-  if (!D || !D.configured()) { el.hidden = true; return; }
-  el.hidden = false; el.dataset.s = D.status; el.textContent = syncLabel(D);
+  if (!D) { el.hidden = true; return; }
+  el.hidden = false; el.dataset.s = D.status; el.textContent = !D.configured() ? 'Saved here · sync setup' : D.pending && D.connected && D.status !== 'syncing' ? 'Saved here · sync pending' : syncLabel(D);
   el.title = D.error || (D.connected ? 'Saved in your Google Drive' : 'Connect Google Drive in Accounts & setup');
 }
 function render() {
@@ -412,7 +413,7 @@ function render() {
   if (!st && S.ready.has('settings')) {
     const D = window.__cashbookLocal?.drive, drive = D && D.configured();
     v.innerHTML = `<div class="panel empty" style="margin-top:24px"><b>${drive ? 'Welcome to Family Cashbook' : 'Start your family ledger'}</b>${drive ? 'Already using Family Cashbook on another device? Load your ledger from Google Drive. New here? Start a fresh ledger, then connect Drive in Accounts &amp; setup.' : 'Add your bank accounts, then plan monthly income, EMIs and expenses. You can record actual activity and compare it with your plan.'}
-      <div class="row" style="margin-top:14px;justify-content:center">${drive ? `<button class="btn primary" data-act="drive-connect">${D.status === 'syncing' ? 'Loading…' : 'Load my ledger from Google Drive'}</button>` : ''}${canWrite ? `<button class="btn ${drive ? '' : 'primary'}" data-act="startledger">Start a new ledger</button>` : '<span class="dim">Ask the family head to set it up.</span>'}</div>
+      <div class="row" style="margin-top:14px;justify-content:center">${drive ? `<button class="btn primary" data-act="drive-connect">${D.status === 'syncing' ? 'Loading…' : 'Load my ledger from Google Drive'}</button>` : ''}<button class="btn" data-act="companion">Phone & laptop sync</button>${canWrite ? `<button class="btn ${drive ? '' : 'primary'}" data-act="startledger">Start a new ledger</button>` : '<span class="dim">Ask the family head to set it up.</span>'}</div>
       ${drive && D.error ? `<p class="hint" style="margin:10px auto 0;color:var(--bad)">${esc(D.error)}</p>` : ''}</div>`;
     return;
   }
@@ -1189,7 +1190,7 @@ let entryType = 'expense';
 function entryModal(catId, o = {}) {
   const ed = o.entryId ? S.entries[o.entryId] : null;
   const c0 = catId ? S.categories[catId] : null; if (c0) entryType = c0.type === 'income' ? 'income' : 'expense';
-  entryModal.o = { tx: o.tx, date: o.date };
+  entryModal.o = { tx: o.tx, date: o.date };entryModal.draftId=o.entryId||newId('e');
   const cats = catList().filter(c => (c.type === 'income') === (entryType === 'income') && !c.id.startsWith('c-misc'));
   const sel = c0 || (o.tx ? null : cats[0]);
   let date = ed ? ed.date : o.date || (c0 && selMonth && selMonth !== todayM ? selMonth + '-01' : todayD);
@@ -1299,7 +1300,7 @@ document.addEventListener('click', async ev => {
     if (amt<=0) return toast('Enter an amount above zero.');
     try{CashbookDomain.dateISO(date);}catch(e){return toast(e.message);}if(!C.ms.includes(date.slice(0,7)))return toast('Choose a date within the plan.');
     if (locked(date.slice(0, 7))) return toast(mlabel(date.slice(0, 7)) + ' is closed. Pick a date from ' + mlabel(firstOpen()) + ' on.');
-    const note = $('#e-note').value.trim(), editId = t.dataset.id;
+    const note = $('#e-note').value.trim(), editId = t.dataset.id, saveId=editId||entryModal.draftId;
     if (cat === '__misc') {
       const inc = entryType === 'income'; cat = inc ? 'c-misc-in' : 'c-misc-out';
       if (!note) return toast('Add a short description for this one-off transaction.');
@@ -1308,13 +1309,15 @@ document.addEventListener('click', async ev => {
     const old = editId ? S.entries[editId] : null;
     const body = { date, month: date.slice(0, 7), categoryId: cat, accountId: $('#e-acc').value, amount: amt, note, by: old?.by ?? (uid || ''), createdAt: old?.createdAt || new Date().toISOString(), ...(old ? { editedAt: new Date().toISOString() } : {}) };
     t.disabled = true;
-    if (await write(() => editId ? db.doc('entries/' + editId).set(body) : db.collection('entries').add(body), editId ? 'Transaction updated' : 'Saved')) closeModal(); else t.disabled = false;
+    if (await write(() => db.doc('entries/' + saveId).set(body), editId ? 'Transaction updated' : 'Saved')) closeModal(); else t.disabled = false;
     return;
   }
   if (a === 'delentry') { if (!confirmTwice(t, 'e' + t.dataset.id)) return; return write(() => db.doc('entries/' + t.dataset.id).delete(), 'Entry deleted'); }
   if (a === 'editcat') return catModal(t.dataset.cat);
+  if (a === 'companion') return CashbookCompanion.open();
   if (a === 'drive-connect' || a === 'drive-sync') {
     const D = window.__cashbookLocal?.drive; if (!D) return;
+    if(!window.__cashbookLocal.encrypted)return CashbookCompanion.open();
     try { await D.connect(); toast(a === 'drive-connect' ? 'Google Drive connected. Your ledger is in sync.' : 'Synced with Google Drive'); } catch (e) { toast(e?.message || 'Could not reach Google Drive.'); }
     return render();
   }
@@ -1539,7 +1542,7 @@ document.addEventListener('change', async ev => {
 });
 window.addEventListener('resize', () => { if (!C) return; if (tab === 'overview') drawChart($('#chart')); if (tab === 'networth') render(); });
 
-CashbookUI.attach({state:()=>S,computed:()=>C,actualComputed:()=>compute(true),refresh:schedule,db:()=>db,month:()=>selMonth,uid:()=>uid||'',canWrite:()=>canWrite,locked,modal:openModal,close:closeModal,toast,go:t=>{tab=t;render();window.scrollTo(0,0);}});
+CashbookUI.attach({state:()=>S,computed:()=>C,actualComputed:()=>compute(true),refresh:schedule,quickEntry:()=>{txModal('expense');const amount=$('#e-amt');if(amount){amount.value='';amount.focus();}},db:()=>db,month:()=>selMonth,uid:()=>uid||'',canWrite:()=>canWrite,locked,modal:openModal,close:closeModal,toast,go:t=>{tab=t;render();window.scrollTo(0,0);}});
 window.addEventListener('cashbook-unlock',schedule);
 // ---------- boot ----------
 (async () => {
@@ -1551,7 +1554,7 @@ window.addEventListener('cashbook-unlock',schedule);
     } catch (e) {}
   }
   window.addEventListener('cashbook-pwa', () => { if (tab === 'setup' && !$('#modal').innerHTML) schedule(); });
-  window.__cashbookLocal?.drive?.onChange(() => { updateSync(); if ((tab === 'setup' || !S.settings) && !$('#modal').innerHTML) schedule(); });
+  window.__cashbookLocal?.drive?.onChange(() => { updateSync(); if ((tab === 'setup' || (tab === 'more' && $('#view').dataset.screen === 'companion') || !S.settings) && !$('#modal').innerHTML) schedule(); });
   if (!db) { render(); return; }
   const onErr = e => { if (e?.code !== 'revoked') toast('Lost live updates. Reload the page to reconnect.'); };
   db.doc('settings/main').onSnapshot(s => { S.settings = s.exists ? s.data() : null; S.ready.add('settings'); schedule(); }, onErr);

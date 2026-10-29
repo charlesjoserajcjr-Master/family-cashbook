@@ -168,18 +168,19 @@
     try { st = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) {}
     const save = () => { try { const {token,exp,...publicState}=st;localStorage.setItem(KEY, JSON.stringify(publicState)); } catch (e) {} };
     delete st.token;delete st.exp;
-    let status = st.connected ? 'idle' : 'off', lastError = '', dirtyFlag = false, timer = null, busy = null;
+    let status = st.connected ? 'idle' : 'off', lastError = '', dirtyFlag = !!st.pending, timer = null, busy = null;
     const listeners = new Set();
     const emit = () => listeners.forEach(fn => { try { fn(); } catch (e) {} });
     const set = (s, err) => { status = s; lastError = err || ''; emit(); };
-    const configured = () => !!CFG.googleWebClientId;
+    const configured = () => !!CFG.googleWebClientId && !DESK;
+    const needsTap=()=>{const e=Error('Saved on this device. Tap Sync now to reconnect to Google.');e.needsTap=true;return e;};
 
     async function getToken(interactive) {
       if (st.token && st.exp > now() + 60000) return st.token;
       if (NATIVE) {
         const SL = Plug('SocialLogin'); if (!SL) throw new Error('Google sign-in is missing from this build.');
         if (!getToken.init) { await SL.initialize({ google: { webClientId: CFG.googleWebClientId, iOSClientId: CFG.googleIosClientId || undefined, mode: 'online' } }); getToken.init = true; }
-        if (!interactive && !st.connected) throw new Error('not connected');
+        if (!interactive) throw needsTap();
         const res = await SL.login({ provider: 'google', options: { scopes: ['email', 'profile', SCOPE] } });
         const t = res?.result?.accessToken?.token || res?.result?.accessToken;
         if (!t || typeof t !== 'string') throw new Error('Google did not return Drive access. Try connecting again.');
@@ -198,12 +199,12 @@
     }
     function loadGis() {
       if (window.google?.accounts?.oauth2) return Promise.resolve();
-      return loadGis.p ||= new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://accounts.google.com/gsi/client'; s.onload = res; s.onerror = () => rej(new Error('Could not reach Google. Check the internet connection.')); document.head.append(s); });
+      return loadGis.p ||= new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://accounts.google.com/gsi/client'; s.onload = res; s.onerror = () => {loadGis.p=null;rej(new Error('Could not reach Google. Check the internet connection.'));}; document.head.append(s); });
     }
     async function api(url, opts = {}, interactive) {
       const tok = await getToken(interactive);
       const r = await fetch(url, { ...opts, headers: { ...(opts.headers || {}), Authorization: 'Bearer ' + tok } });
-      if (r.status === 401 && !opts._retried) { st.token = ''; st.exp = 0; save(); if (!NATIVE && !interactive) { const e = new Error('Google sign-in expired. Tap Sync now to reconnect.'); e.needsTap = true; throw e; } return api(url, {...opts,_retried:true}, interactive); }
+      if (r.status === 401 && !opts._retried) { st.token = ''; st.exp = 0; save(); if (!interactive) { const e = new Error('Google sign-in expired. Tap Sync now to reconnect.'); e.needsTap = true; throw e; } return api(url, {...opts,_retried:true}, interactive); }
       if(r.status===412){const e=Error('Drive changed during sync. Retry to merge the latest copy.');e.precondition=true;throw e;}
       if (!r.ok) throw new Error('Google Drive error ' + r.status + ': ' + (await r.text()).slice(0, 160));
       return r;
@@ -231,40 +232,47 @@
     }
     async function syncOnce(interactive) {
       await ready;assertWritable();if(docs.get('family/main'))throw Error('Use signed family file exchange for family ledgers; personal Drive sync is disabled to keep one authoritative roster.');if(saveError)throw Error('Retry the local save before syncing.');await saveQueue;
-      if(!configured())throw Error('Google Drive sync is not set up in this build yet.');
+      if(!configured())throw Error(DESK?'Use the laptop browser app for Google sign-in; the Windows EXE sign-in flow is not configured.':'Google Drive sync is not set up in this build yet.');
+      if(!ledgerPassword)throw Error('Enable working-ledger encryption before connecting personal device sync.');
       if(!navigator.onLine){set('offline');return;}set('syncing');
+      // Bind the connection to a Drive account before reading or writing any ledger.
+      const about=await (await api('https://www.googleapis.com/drive/v3/about?fields=user(permissionId,emailAddress)',{},interactive)).json();
+      const account=about.user?.permissionId;if(!account)throw Error('Google did not identify the Drive account. Sync stopped.');
+      if(st.accountId&&st.accountId!==account){st.token='';st.exp=0;throw Error('This is a different Google account. Reconnect using the original account, or disconnect this device before changing accounts.');}
+      st.accountId=account;st.email=about.user.emailAddress||st.email||'';save();
       // Always re-read after a lost acknowledgement or restart. No first-sync override.
       for(let attempt=0;attempt<3;attempt++){
         st.fileId='';const id=await findFile(interactive);let needUpload=dirtyFlag||!id,etag=null;
         if(id){
           const response=await api('https://www.googleapis.com/drive/v3/files/'+id+'?alt=media',{},interactive);
-          etag=response.headers.get('ETag');let raw=await response.text();
+          etag=response.headers.get('ETag');let raw=await response.text();const wasPlain=JSON.parse(raw).app==='family-cashbook';
           if(raw.length>30e6)throw Error('Remote ledger is too large.');
           if(JSON.parse(raw).app==='family-cashbook-encrypted'){
             if(!ledgerPassword)throw Error('Enable and unlock ledger encryption with the shared passphrase before syncing this encrypted copy.');
             raw=await CashbookSecurity.open(raw,ledgerPassword);
           }
-          const result=await mergeIn(CashbookSchema.parse(raw));needUpload=needUpload||result.localNewer;
+          const remote=CashbookSchema.parse(raw);if(remote.docs['family/main'])throw Error('This cloud file is a family ledger. Use signed family exchange instead of personal device sync.');
+          const result=await mergeIn(remote);needUpload=needUpload||result.localNewer||wasPlain;
         }
         const sentGeneration=generation;
         try{if(needUpload)await upload(interactive,etag);}catch(e){dirtyFlag=true;if(e.precondition&&attempt<2)continue;throw e;}
-        dirtyFlag=generation!==sentGeneration;st.connected=true;st.lastSync=now();save();set(dirtyFlag?'idle':'synced');return;
+        dirtyFlag=generation!==sentGeneration;st.pending=dirtyFlag;st.connected=true;st.lastSync=now();save();set(dirtyFlag?'idle':'synced');return;
       }
     }
     function sync(interactive) {
-      if (busy) return busy.then(() => dirtyFlag ? sync(interactive) : undefined);
+      if (busy) return busy.catch(error=>{if(!interactive)throw error;}).then(() => interactive || dirtyFlag ? sync(interactive) : undefined);
       busy = syncOnce(interactive).catch(e => { if (e.message === 'not connected') set('off'); else set(e.needsTap ? 'needs-tap' : navigator.onLine ? 'error' : 'offline', e.message); throw e; }).finally(() => { busy = null; });
       return busy;
     }
     const quiet = p => p && p.catch(() => {});
     return {
-      configured, get status() { return status; }, get error() { return lastError; }, get lastSync() { return st.lastSync || 0; }, get email() { return st.email || ''; }, get connected() { return !!st.connected; },
+      configured, get pending(){return dirtyFlag;}, get supported(){return !DESK;}, get status() { return status; }, get error() { return lastError; }, get lastSync() { return st.lastSync || 0; }, get email() { return st.email || ''; }, get connected() { return !!st.connected; },
       onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },
-      dirty() { dirtyFlag = true; if (!st.connected) return; clearTimeout(timer); timer = setTimeout(() => quiet(sync(false)), 4000); },
+      dirty() { dirtyFlag = true;st.pending=true;save();emit(); if (!st.connected) return; clearTimeout(timer); timer = setTimeout(() => quiet(sync(false)), 4000); },
       connect: () => sync(true),
       syncNow: () => sync(true),
-      background: () => st.connected ? quiet(sync(false)) : undefined,
-      async disconnect() { const t = st.token; st = {}; save(); set('off'); if (!NATIVE && t && window.google?.accounts?.oauth2) try { window.google.accounts.oauth2.revoke(t); } catch (e) {} if (NATIVE) try { await Plug('SocialLogin')?.logout({ provider: 'google' }); } catch (e) {} },
+      background: () => st.connected && configured() && !lockedEnvelope && !loadError && ledgerPassword ? quiet(sync(false)) : undefined,
+      async disconnect() { if(busy)throw Error('Wait for the current sync to finish before disconnecting.');clearTimeout(timer);timer=null;dirtyFlag=false;const t = st.token; st = {}; save(); set('off'); if (!NATIVE && t && window.google?.accounts?.oauth2) try { window.google.accounts.oauth2.revoke(t); } catch (e) {} if (NATIVE) try { await Plug('SocialLogin')?.logout({ provider: 'google' }); } catch (e) {} },
     };
   })();
 
@@ -360,7 +368,7 @@
     async chooseFolder() { await saveQueue;if(saveError||loadError)throw Error('Resolve storage errors first.');if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; await DESK.write(JSON.stringify(snapshot())); } const r = await DESK.chooseFolder(); if (r && r.reload) location.reload(); return r; },
   } : null;
 
-  async function unlock(password){await ready;if(!lockedEnvelope)return;const plain=await CashbookSecurity.open(lockedEnvelope,password);const o=CashbookSchema.parse(plain);load(o);ledgerPassword=password;lockedEnvelope=null;notifyMany([...new Set([...docSubs.keys(),...docs.keys()])]);for(const [c,fns]of colSubs)for(const fn of fns)fn(snapCol(c));window.dispatchEvent(new Event('cashbook-unlock'));}
+  async function unlock(password){await ready;if(!lockedEnvelope)return;const plain=await CashbookSecurity.open(lockedEnvelope,password);const o=CashbookSchema.parse(plain);load(o);ledgerPassword=password;lockedEnvelope=null;notifyMany([...new Set([...docSubs.keys(),...docs.keys()])]);for(const [c,fns]of colSubs)for(const fn of fns)fn(snapCol(c));window.dispatchEvent(new Event('cashbook-unlock'));Drive.background();}
   async function encryptLedger(password){await ready;assertWritable();if(Drive.connected)throw Error('Disconnect Drive and preserve a backup before enabling encryption.');if(password.length<12)throw Error('Use at least 12 characters.');await saveQueue;ledgerPassword=password;await persist();}
   async function lock(){await ready;await saveQueue;if(saveError)throw Error('Retry the save before locking.');if(!ledgerPassword)throw Error('Enable working-ledger encryption first.');location.reload();}
   async function exportSource(){if(!rawSource)throw Error("No saved source is available.");const r=await exportFile("family-cashbook-unreadable-source-"+Date.now()+".json",rawSource,"application/json");if(r===false)throw Error("Export cancelled.");sourcePreserved=true;}

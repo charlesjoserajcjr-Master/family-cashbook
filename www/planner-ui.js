@@ -37,7 +37,7 @@ function afterRender(tab){
  const el=document.createElement('div');el.id='feature-toolbar';el.className='row';el.style.marginTop='12px';
  if(tab==='overview'){
   const r=recorded();
-  el.innerHTML='<div class="panel pad"><b>Recorded cash today: '+(r.fxMissing.length?'FX rates needed':fmt(r.cash))+'</b><div class="hint">Calculated from opening balances and recorded transactions. Forecast cards below include expected future activity.</div></div>'+btn('calendar','Upcoming bills')+btn('scenarios','Compare a scenario');
+  el.innerHTML=btn('quick-entry','Quick transaction')+btn('companion','Phone & laptop sync')+'<div class="panel pad"><b>Recorded cash today: '+(r.fxMissing.length?'FX rates needed':fmt(r.cash))+'</b><div class="hint">Calculated from opening balances and recorded transactions. Forecast cards below include expected future activity.</div></div>'+btn('calendar','Upcoming bills')+btn('scenarios','Compare a scenario');
  }else if(tab==='plan')el.innerHTML=btn('scenarios','What-if scenarios')+btn('goals','Savings goals')+btn('contract','Contract income')+btn('calendar','Bill dates');
  else if(tab==='transactions')el.innerHTML=btn('import','Import statement')+btn('month','Monthly review');
  else if(tab==='month'&&!A.locked(currentMonth()))el.innerHTML=btn('close-month','Review and close '+currentMonth())+btn('complete','Complete a category');
@@ -47,7 +47,7 @@ function afterRender(tab){
 function menu(){
  return panel('More','<p>Choose the tools you need. Your data stays available without a subscription.</p><div class="tool-grid">'+[
  ['month','Monthly review'],['loans','Loans & EMIs'],['networth','Net worth'],['business','Businesses'],['setup','Accounts & backup'],
- ['calendar','Bills calendar'],['goals','Savings goals'],['scenarios','What-if scenarios'],['prepay','Loan prepayment'],['import','Statement import'],
+ ['companion','Phone & laptop sync'],['calendar','Bills calendar'],['goals','Savings goals'],['scenarios','What-if scenarios'],['prepay','Loan prepayment'],['import','Statement import'],
  ['contract','Contract income & currency conversion'],['card','Add credit card'],['security','Privacy & encrypted backups'],['conflicts','Sync history'],['plans','Plans & family access'],['family','Encrypted family file sync'],['currency','Multi-currency accounts & remittances'],['billing','Purchases & restore']
  ].map(([k,v])=>btn(k,v)).join('')+'</div>');
 }
@@ -160,7 +160,7 @@ function plans(){
 function more(){
  if(screen==='import'&&importDirty&&$('#im-file'))return;
  const active=$('#view'),results={};if(active?.dataset.screen===screen)for(const key of ['pp-result','sc-result']){const el=document.getElementById(key);if(el)results[key]=el.innerHTML;}if(active&&active.dataset.screen===screen){const values={};for(const e of active.querySelectorAll('input[id],select[id],textarea[id]'))if(e.type!=='file'&&e.type!=='password')values[e.id]={value:e.value,checked:e.checked};drafts.set(screen,values);}
- const views={menu,scenarios,goals,prepay,calendar,import:importScreen,contract,security,conflicts,plans,family:()=>CashbookFamilyUI.render(),currency:()=>CashbookCurrencyUI.render(),billing:()=>CashbookBillingUI.render()};$('#view').innerHTML=(views[screen]||menu)();$('#view').dataset.screen=screen;for(const [key,value]of Object.entries(drafts.get(screen)||{})){const e=document.getElementById(key);if(e){e.value=value.value;e.checked=value.checked;}}for(const [key,html]of Object.entries(results)){const el=document.getElementById(key);if(el)el.innerHTML=html;}}
+ const views={menu,companion:()=>CashbookCompanion.render(),scenarios,goals,prepay,calendar,import:importScreen,contract,security,conflicts,plans,family:()=>CashbookFamilyUI.render(),currency:()=>CashbookCurrencyUI.render(),billing:()=>CashbookBillingUI.render()};$('#view').innerHTML=(views[screen]||menu)();$('#view').dataset.screen=screen;for(const [key,value]of Object.entries(drafts.get(screen)||{})){const e=document.getElementById(key);if(e){e.value=value.value;e.checked=value.checked;}}for(const [key,html]of Object.entries(results)){const el=document.getElementById(key);if(el)el.innerHTML=html;}}
 function onboard(){
  A.modal('<h2>Start with the essentials</h2><p>Add a starting balance and monthly income and spending. You can refine individual categories later.</p><div class="form">'+field('Account name','ob-name','text','Main savings')+field('Opening balance at start of month (₹)','ob-balance','number',0)+field('Monthly income (₹)','ob-income','number',0,'min="0"')+field('Monthly household budget (₹)','ob-expense','number',0,'min="0"')+field('Start month','ob-start','month',today().slice(0,7))+'</div><div class="row">'+btn('ob-save','Create my plan')+btn('cancel','Cancel')+'</div>');
 }
@@ -173,7 +173,8 @@ async function action(t){
  if(a==='sec-lock'){await window.__cashbookLocal.lock();return;}
  if(a==='cancel'){A.close();return;}
  if(['month','loans','networth','business','setup'].includes(a)){A.go(a);return;}
- if(['menu','scenarios','goals','prepay','calendar','import','contract','security','conflicts','plans','family','currency','billing'].includes(a)){navigate(a);return;}
+ if(a==='quick-entry'){A.quickEntry();return;}
+ if(['companion','menu','scenarios','goals','prepay','calendar','import','contract','security','conflicts','plans','family','currency','billing'].includes(a)){navigate(a);return;}
  if(a==='sc-calc'||a==='sc-save'){const x=scenarioInput();scenarioResult(x);if(a==='sc-save'){await save('features/'+id(),{...x,type:'scenario'});A.toast('Scenario saved.');}return;}
  if(a==='sc-load'){const x=S().features[t.dataset.id];for(const [key,v]of Object.entries({'name':x.name,'from':x.from,'to':x.to,'income':(x.incomeFactor-1)*100,'expense':(x.expenseFactor-1)*100,'extra':x.monthlyExtra,'once':x.oneOff,'month':x.oneOffMonth}))$('#sc-'+key).value=v;scenarioResult(x);return;}
  if(a==='goal-new'||a==='goal-edit'){goalModal(S().features[t.dataset.id]);return;}
@@ -254,5 +255,5 @@ document.addEventListener('change',e=>{if(e.target.id==='im-file')importDirty=tr
 function recoveryScreen(){
  $('#view').innerHTML=panel('Saved ledger could not be read','<p>Editing is blocked to protect the original data. Export the unreadable source first, then restore a known backup. Nothing is overwritten until the backup validates.</p>'+btn('source-export','Export original source')+'<label class="f">Verified backup<input type="file" id="recover-file" accept=".json"></label>'+field('Passphrase, for encrypted backups','recover-pass','password')+btn('recover-restore','Restore backup'));$('#fab').hidden=true;
 }
-window.CashbookUI={reset:()=>{screen="menu";},recoveryScreen,attach:api=>{A=api;window.CashbookFamilyUI?.attach(api);window.CashbookCurrencyUI?.attach(api);window.CashbookBillingUI?.attach(api);},get busy(){return operations>0||!!window.CashbookFamilyUI?.busy||!!window.CashbookCurrencyUI?.busy||!!window.CashbookBillingUI?.busy;},afterRender,more,onboard,lockScreen};
+window.CashbookUI={reset:()=>{screen="menu";},recoveryScreen,attach:api=>{A=api;window.CashbookFamilyUI?.attach(api);window.CashbookCurrencyUI?.attach(api);window.CashbookBillingUI?.attach(api);window.CashbookCompanion?.attach(api);},get busy(){return operations>0||!!window.CashbookCompanion?.busy||!!window.CashbookFamilyUI?.busy||!!window.CashbookCurrencyUI?.busy||!!window.CashbookBillingUI?.busy;},afterRender,more,onboard,lockScreen};
 })();

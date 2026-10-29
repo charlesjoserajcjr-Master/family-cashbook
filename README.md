@@ -121,3 +121,7 @@ Working-ledger encryption is optional and uses an unrecoverable passphrase. Earl
 Read [CONTINUATION-STATUS.md](docs/CONTINUATION-STATUS.md) for the current implementation scope and validation limits, [FAMILY-FILES.md](docs/FAMILY-FILES.md) for the owner/member workflow, [BILLING-SETUP.md](docs/BILLING-SETUP.md) for merchant/store setup, and [NATIVE-VERIFICATION.md](docs/NATIVE-VERIFICATION.md) for preview builds and physical-device checks.
 
 Use `npm ci`, `npm test`, `npm run prepare-web`, and `npm run test:browser`. The new native CI jobs build isolated previews and do not publish. Billing is disabled until actual provider settings and approved products are configured. INR is the reporting currency; foreign accounts keep their native amounts in the Currency workspace.
+
+## Personal phone companion
+
+See [Phone quick entry and laptop sync](docs/PHONE-SYNC.md) for encrypted pairing, offline entry, OAuth setup and current browser/native limits. Google OAuth remains unconfigured.

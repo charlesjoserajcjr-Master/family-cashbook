@@ -1,8 +1,8 @@
 // Family Cashbook offline support (web version only).
 // Keeps a copy of the app itself so it opens without internet. Your ledger data is not stored here;
 // it lives in the browser's storage (and in Google Drive once sync is on).
-const CACHE = 'cashbook-family-v5-__BUILD__';
-const CORE = ['./', 'index.html', 'config.js', 'local-store.js', 'domain.js', 'ledger-schema.js', 'sync-records.js', 'security.js', 'family-files.js', 'family-ui.js', 'currency.js','currency-ui.js', 'entitlements.js','billing-ui.js','vendor/native-plugins.js', 'planner-ui.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
+const CACHE = 'cashbook-family-v6-__BUILD__';
+const CORE = ['./', 'index.html', 'config.js', 'local-store.js', 'domain.js', 'ledger-schema.js', 'sync-records.js', 'security.js', 'family-files.js', 'family-ui.js', 'currency.js','currency-ui.js', 'entitlements.js','billing-ui.js','vendor/native-plugins.js', 'planner-ui.js','companion-ui.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(CORE)));

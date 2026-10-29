@@ -28,3 +28,7 @@ Still required before release:
 5. Review remaining original handover usability items (Simple/Advanced modes, optional notifications, demo ledger) separately. Do not claim every original recommendation is finished.
 
 Setup and limitations: FAMILY-FILES.md, BILLING-SETUP.md and NATIVE-VERIFICATION.md. Do not merge or deploy until the outstanding checks and owner configuration have been completed.
+
+## Personal phone companion follow-up
+
+Phone quick entry and encrypted same-user Drive pairing are now prepared. See PHONE-SYNC.md for first pairing, browser/native limits and OAuth setup. Local verification passes 71 automated tests and the expanded browser suite, including a mocked two-profile phone-to-laptop flow. Google IDs remain blank. Real Drive/OAuth and physical-device sync have not been validated; no deployment has occurred.
