@@ -3,8 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#3340A0">
-<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#F5F8F7">
+<meta name="color-scheme" content="light">
+<meta name="description" content="ReadyTrove Family Money — Your money today. Your family’s tomorrow.">
 <style>
 :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);-webkit-text-size-adjust:100%}
 body{margin:0;font:14px system-ui,-apple-system,"Segoe UI",sans-serif}
@@ -12,32 +13,42 @@ img{max-width:100%}
 [hidden]{display:none!important}
 </style>
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="icons/icon-192.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <script src="config.js"></script>
+<script src="vendor/native-plugins.js"></script>
+<script src="domain.js"></script>
+<script src="ledger-schema.js"></script>
+<script src="sync-records.js"></script>
+<script src="security.js"></script>
+<script src="family-files.js"></script>
+<script src="currency.js"></script>
 <script src="local-store.js"></script>
-<title>Family Cashbook</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Instrument+Sans:wght@400;500;600&display=swap">
+<script src="family-ui.js"></script>
+<script src="currency-ui.js"></script>
+<script src="entitlements.js"></script>
+<script src="billing-ui.js"></script>
+<script src="companion-ui.js"></script>
+<script src="planner-ui.js"></script>
+<link rel="stylesheet" href="vendor/fonts/bricolage-grotesque/500.css">
+<link rel="stylesheet" href="vendor/fonts/bricolage-grotesque/700.css">
+<link rel="stylesheet" href="vendor/fonts/instrument-sans/400.css">
+<link rel="stylesheet" href="vendor/fonts/instrument-sans/500.css">
+<link rel="stylesheet" href="vendor/fonts/instrument-sans/600.css">
+<title>ReadyTrove Family Money</title>
 <style>
 /* Layout: app shell — header + scrollable tab bar, one working view at a time, floating "Add entry" for family members */
 :root{
-  --bg:#F4F5F8; --surface:#FFFFFF; --sunk:#EDEFF4; --ink:#1A1D2E; --ink2:#4A5068; --muted:#737a93; --line:#E0E3EB;
-  --accent:#3340A0; --accent-ink:#FFFFFF; --accent-soft:#E7E9F7; --marigold:#C98410;
-  --good:#1D7A4C; --good-soft:#E2F3EA; --warn:#9A6512; --warn-soft:#FBF0DC; --bad:#B8322A; --bad-soft:#FBE6E4;
+  --bg:#F5F8F7; --surface:#FFFFFF; --sunk:#EDF3F1; --ink:#203A36; --ink2:#435E59; --muted:#596F6A; --line:#D7E3DE;
+  --accent:#216B60; --accent-ink:#FFFFFF; --accent-soft:#E3F2ED; --marigold:#946311;
+  --good:#27734D; --good-soft:#E7F4EC; --warn:#896015; --warn-soft:#FFF3D9; --bad:#AE3936; --bad-soft:#FCECE9;
+  color-scheme:light;
   --display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
   --body:"Instrument Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
   --r:10px;
 }
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#10121A; --surface:#191C27; --sunk:#141620; --ink:#ECEEF5; --ink2:#B6BBD0; --muted:#8a90aa; --line:#2A2E3E;
-  --accent:#8F9AF2; --accent-ink:#10121A; --accent-soft:#242848; --marigold:#F0B04A;
-  --good:#58C993; --good-soft:#15291F; --warn:#E6B656; --warn-soft:#2B2413; --bad:#F2786D; --bad-soft:#2E1715; color-scheme:dark}}
-:root[data-theme="dark"]{
-  --bg:#10121A; --surface:#191C27; --sunk:#141620; --ink:#ECEEF5; --ink2:#B6BBD0; --muted:#8a90aa; --line:#2A2E3E;
-  --accent:#8F9AF2; --accent-ink:#10121A; --accent-soft:#242848; --marigold:#F0B04A;
-  --good:#58C993; --good-soft:#15291F; --warn:#E6B656; --warn-soft:#2B2413; --bad:#F2786D; --bad-soft:#2E1715; color-scheme:dark}
+/* Use the light palette consistently, including on devices set to dark mode. */
 
 *{box-sizing:border-box}
 html,body{background:var(--bg)}
@@ -45,7 +56,7 @@ body{color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.45;fo
 .wrap{max-width:1360px;margin:0 auto;padding-inline:16px;padding-block:0 96px}
 header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--bg);border-bottom:1px solid var(--line)}
 .top-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-block:14px 8px;max-width:1360px;margin:0 auto;padding-inline:16px}
-.brand{display:flex;align-items:baseline;gap:10px;min-width:0}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}.brand-mark{width:48px;height:48px;object-fit:contain;flex:none;border-radius:12px}.brand-copy{display:flex;flex-direction:column;min-width:0}.brand-owner{font-size:11px;font-weight:600;color:var(--accent);letter-spacing:.04em}
 .brand h1{font-family:var(--display);font-weight:700;font-size:22px;letter-spacing:-.01em;margin:0}
 .brand .sub{color:var(--muted);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .who{display:flex;align-items:center;gap:8px;color:var(--ink2);font-size:12.5px;flex:none;max-width:40%;overflow:hidden;white-space:nowrap}
@@ -57,7 +68,7 @@ header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;backgroun
 .syncchip[data-s="error"]::before,.syncchip[data-s="needs-tap"]::before{background:var(--bad)}
 .syncchip[data-s="offline"]::before{background:var(--warn)}
 @media (max-width:560px){.who{display:none}}
-@media (max-width:560px){.brand{flex-direction:column;align-items:flex-start;gap:0}.brand h1{font-size:20px}.brand .sub{max-width:100%}}
+@media (max-width:560px){.top-row{flex-wrap:wrap}.top-row>.row{margin-left:60px;max-width:calc(100% - 60px)}.brand{flex-direction:row;align-items:center;gap:12px}.brand h1{font-size:20px}.brand .sub{max-width:100%}}
 .who img{width:26px;height:26px;border-radius:50%}
 nav.tabs{display:flex;gap:4px;overflow-x:auto;max-width:1360px;margin:0 auto;padding-inline:12px;scrollbar-width:none}
 nav.tabs::-webkit-scrollbar{display:none}
@@ -67,10 +78,10 @@ nav.tabs button:focus-visible,button:focus-visible,input:focus-visible,select:fo
 
 h2{font-family:var(--display);font-weight:700;font-size:18px;margin:0;letter-spacing:-.005em;text-wrap:balance}
 h3{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0}
-.section{display:grid;gap:12px;margin-top:22px}
+.section{display:grid;grid-template-columns:minmax(0,1fr);min-width:0;gap:12px;margin-top:22px}
 .section-head{display:flex;align-items:end;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .hint{color:var(--muted);font-size:12.5px;max-width:70ch}
-.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
+.panel{min-width:0;max-width:100%;background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
 .pad{padding:16px}
 
 .kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:20px}
@@ -90,7 +101,7 @@ h3{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;
 .grid2{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:16px}
 @media (max-width:900px){.grid2{grid-template-columns:minmax(0,1fr)}}
 
-.scroll{overflow-x:auto}
+.scroll{overflow-x:auto;min-width:0;max-width:100%}
 table{border-collapse:collapse;width:100%}
 th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
 th{font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);background:var(--sunk)}
@@ -243,27 +254,23 @@ label.f{display:grid;gap:4px;font-size:12.5px;color:var(--ink2)}
 @media (prefers-reduced-motion:no-preference){.sheet{animation:up .18s ease-out}@keyframes up{from{transform:translateY(12px);opacity:.6}}}
 </style>
 
+<style>.tool-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}.tool-grid .btn{min-height:56px;text-align:left}.form{margin-block:12px}.panel .row{margin-block:12px}#save-status{position:relative;z-index:21}</style>
 </head>
 <body>
 <header class="top">
   <div class="top-row">
-    <div class="brand"><h1>Family Cashbook</h1><span class="sub" id="sub">Loading family accounts…</span></div>
-    <div class="row" style="flex-wrap:nowrap;gap:10px;min-width:0"><button class="syncchip" id="sync" data-tab="setup" hidden></button><div class="who" id="who"></div></div>
+    <div class="brand"><img class="brand-mark" src="icons/icon-192.png" alt="" width="48" height="48"><div class="brand-copy"><span class="brand-owner">ReadyTrove</span><h1>Family Money</h1><span class="sub" id="sub">Loading family accounts…</span></div></div>
+    <div class="row" style="flex-wrap:nowrap;gap:10px;min-width:0"><button class="syncchip" id="sync" data-act="companion" hidden></button><div class="who" id="who"></div></div>
   </div>
   <nav class="tabs" role="tablist" id="tabs">
-    <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
-    <button role="tab" data-tab="month" aria-selected="false">Month</button>
-    <button role="tab" data-tab="plan" aria-selected="false">Plan</button>
-    <button role="tab" data-tab="loans" aria-selected="false">Loans &amp; EMIs</button>
-    <button role="tab" data-tab="networth" aria-selected="false">Net worth</button>
-    <button role="tab" data-tab="business" aria-selected="false">Businesses</button>
-    <button role="tab" data-tab="transactions" aria-selected="false">Transactions</button>
-    <button role="tab" data-tab="setup" aria-selected="false">Accounts &amp; setup</button>
-  </nav>
+<button role="tab" data-tab="overview" aria-selected="true">Home</button>
+<button role="tab" data-tab="transactions" aria-selected="false">Transactions</button>
+<button role="tab" data-tab="plan" aria-selected="false">Plan</button>
+<button role="tab" data-tab="more" aria-selected="false">More</button></nav>
 </header>
 
 <main class="wrap" id="view">
-  <div class="panel empty" style="margin-top:24px"><b>Loading your family's accounts</b>Balances, the monthly plan and everyone's entries appear here once the shared ledger connects.</div>
+  <div class="panel empty" style="margin-top:24px"><b>Loading your family's accounts</b>Balances, the monthly plan and recorded entries appear here once the ledger loads.</div>
 </main>
 
 <button class="btn primary fab" id="fab" hidden>+ Add entry</button>
@@ -287,14 +294,14 @@ const num = v => { const n = parseFloat(String(v).replace(/[₹,\s]/g, '')); ret
 const todayM = (() => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); })();
 const todayD = new Date().toISOString().slice(0, 10);
 
-const S = { settings: null, accounts: {}, categories: {}, transfers: {}, entries: {}, businesses: {}, balances: {}, holdings: {}, ready: new Set() };
+const S = { settings: null, accounts: {}, categories: {}, transfers: {}, entries: {}, businesses: {}, balances: {}, holdings: {}, features: {}, family: {}, fxAccounts:{},fxEntries:{},fxTransfers:{},fxPlans:{},fxRates:{},fxBalances:{}, ready: new Set() };
 let db = null, user = null, uid = null, canWrite = true, tab = 'overview', selMonth = null, planFrom = null, trFrom = null;
 let pending = false, C = null, isAdmin = true;
 const closedThrough = () => S.settings?.closedThrough || '';
 const locked = m => !!closedThrough() && m <= closedThrough();
 const firstOpen = () => closedThrough() ? addM(closedThrough(), 1) : (S.settings?.start || todayM);
 
-try { const t = location.hash.slice(1); if (t === 'transfers') tab = 'transactions'; else if (['overview','month','plan','loans','networth','business','transactions','setup'].includes(t)) tab = t; } catch (e) {}
+try { const t = location.hash.slice(1); if (t === 'transfers') tab = 'transactions'; else if (['overview','month','plan','loans','networth','business','transactions','setup','more'].includes(t)) tab = t; } catch (e) {}
 
 // ---------- engine ----------
 const accList = () => Object.values(S.accounts).sort((a, b) => (a.order ?? 99) - (b.order ?? 99) || String(a.name).localeCompare(b.name));
@@ -310,18 +317,18 @@ const catList = () => Object.values(S.categories).sort((a, b) => sectionOf(a).ra
 const catLabel = c => (isBiz(c) ? bizName(c.business) + ' · ' : '') + c.name;
 const accName = id => S.accounts[id]?.name || 'Unassigned';
 
-function compute() {
+function compute(actualOnly=false) {
   const st = S.settings || {};
   const ms = range(st.start, st.end);
   const accs = accList();
   const act = {};
   for (const e of Object.values(S.entries)) { ((act[e.categoryId] ??= {})[e.month] ??= []).push(e); }
-  const rows = {}, bal = {}, total = {}, below = {}, flow = {};
+  const rows = {}, bal = {}, total = {}, below = {}, flow = {},fxMissing=[],fxByMonth={};
   // Transfers: a logged actual (real date, accounts, amount) replaces the planned one, possibly in another month.
   const trByMonth = {};
   for (const [pm, d] of Object.entries(S.transfers)) for (const t of (d.items || [])) {
     const a = t.actual, em = a?.date ? a.date.slice(0, 7) : pm;
-    if (!a && locked(pm)) continue; // closed months keep confirmed transfers only
+    if (!a && (actualOnly||locked(pm))) continue; // closed months keep confirmed transfers only
     (trByMonth[em] ??= []).push({ from: a?.from || t.from, to: a?.to || t.to, amount: +(a ? a.amount : t.amount) || 0, act: !!a });
   }
   accs.forEach(a => { rows[a.id] = {}; bal[a.id] = +a.opening || 0; });
@@ -330,27 +337,31 @@ function compute() {
     for (const c of Object.values(S.categories)) {
       const apply = (acc, amt) => { if (!r[acc]) return; if (c.type === 'income') r[acc].rec += amt; else r[acc].pay += amt; };
       const list = act[c.id]?.[m];
-      if (list && list.length) { conf += list.length; list.forEach(e => apply(e.accountId || c.account, +e.amount || 0)); }
-      else if (!locked(m)) { const v = +(c.amounts?.[m]) || 0; if (v) apply(c.account, v); }
+      const actual=(list||[]).reduce((n,e)=>n+(+e.amount||0),0);
+      if(list?.length){conf+=list.length;list.forEach(e=>apply(e.accountId||c.account,+e.amount||0));}
+      const projection=CashbookDomain.categoryProjection({planned:+c.amounts?.[m]||0,actual,hasActual:!!list?.length,closed:actualOnly||locked(m),complete:!!c.completedMonths?.[m],mode:c.forecastMode||'budget'});
+      if(projection.remaining)apply(c.account,projection.remaining);
     }
     for (const t of (trByMonth[m] || [])) { if (t.act) conf++; if (r[t.from]) r[t.from].tout += t.amount; if (r[t.to]) r[t.to].tin += t.amount; }
+    for(const leg of (window.CashbookCurrency?.legacyLegs(S,m,{actualOnly:actualOnly||locked(m)})||[])){if(r[leg.accountId]){r[leg.accountId].tin+=leg.in;r[leg.accountId].tout+=leg.out;}}
     let tot = 0, inc = 0, exp = 0, diff = 0, counted = 0; const b = [];
     const bank = S.balances[m]?.values || {};
     for (const a of accs) {
       const x = r[a.id]; x.calc = x.begin + x.rec + x.tin - x.pay - x.tout; x.end = x.calc;
       const v = bank[a.id];
       if (v !== null && v !== undefined && v !== '' && isFinite(+v)) { x.actual = +v; x.diff = x.actual - x.calc; x.end = x.actual; diff += x.diff; counted++; }
-      bal[a.id] = x.end; tot += x.end; inc += x.rec; exp += x.pay; if (x.end < (+a.min || 0)) b.push(a.id); rows[a.id][m] = x;
+      bal[a.id] = x.end; if(a.kind!=='Credit')tot += x.end; inc += x.rec; exp += x.pay; if (a.kind!=='Credit' && x.end < (+a.min || 0)) b.push(a.id); rows[a.id][m] = x;
     }
+    if(window.CashbookCurrency){const end=m+'-'+new Date(+m.slice(0,4),+m.slice(5,7),0).getDate(),fx=CashbookCurrency.compute(S,end,{projected:!actualOnly&&!locked(m)});fxByMonth[m]=fx;fxMissing.push(...fx.missing);if(!fx.missing.length)tot+=fx.liquidINR;for(const e of fx.rows.filter(e=>e.date.slice(0,7)===m)){if(e.event==='entry'||e.event==='plan'){if(e.type==='income')inc+=e.projectedINR;else exp+=e.projectedINR;}else if(e.event==='transfer')exp+=e.feeINR;}}
     total[m] = tot; below[m] = b; flow[m] = { inc, exp, diff, counted, confirmed: conf };
   }
   const cur = ms.length ? (todayM < ms[0] ? ms[0] : todayM > ms[ms.length - 1] ? ms[ms.length - 1] : todayM) : todayM;
   // Once the current month is closed, "now" moves to the first open month.
   const curOpen = locked(cur) && ms.includes(firstOpen()) ? firstOpen() : cur;
-  return { ms, accs, rows, total, below, flow, act, cur: curOpen, loanCache: {} };
+  return { ms, accs, rows, total, below, flow, act, cur: curOpen, loanCache: {},fxMissing:[...new Set(fxMissing)],fxByMonth };
 }
 const planVal = (c, m) => +(c.amounts?.[m]) || 0;
-const eff = (c, m) => actualVal(c, m) ?? (locked(m) ? 0 : planVal(c, m));
+const eff=(c,m)=>CashbookDomain.categoryProjection({planned:planVal(c,m),actual:actualVal(c,m)||0,hasActual:actualVal(c,m)!==null,closed:locked(m),complete:!!c.completedMonths?.[m],mode:c.forecastMode||'budget'}).total;
 const actualVal = (c, m) => { const l = C.act[c.id]?.[m]; return l && l.length ? l.reduce((s, e) => s + (+e.amount || 0), 0) : null; };
 
 // ---------- writes ----------
@@ -359,7 +370,7 @@ async function write(fn, okMsg) {
   if (!db) { toast('The shared ledger is not connected in this view.'); return false; }
   try { await fn(); if (okMsg) toast(okMsg); return true; }
   catch (e) {
-    if (e?.code === 'invalid_argument') { canWrite = false; toast('You can view but not change this ledger. Ask the family head to share it with you as an Editor.'); }
+    if (e?.code === 'permission_denied'||e?.code==='revoked') { canWrite=false;toast('Your data service denied this change.'); }
     else if (e?.code === 'unavailable') { toast('Connection hiccup. Try that again in a moment.'); }
     else toast('Could not save: ' + (e?.message || 'unknown error'));
     return false;
@@ -369,6 +380,7 @@ const newId = p => p + Date.now().toString(36) + Math.random().toString(36).slic
 
 // ---------- rendering ----------
 function schedule() {
+  if(window.CashbookUI?.busy){pending=true;return;}
   const a = document.activeElement;
   if (a && $('#view').contains(a) && a.matches('input,select,textarea')) { pending = true; return; }
   cancelAnimationFrame(schedule._r); schedule._r = requestAnimationFrame(render);
@@ -381,11 +393,15 @@ function syncLabel(D) {
 }
 function updateSync() {
   const D = window.__cashbookLocal?.drive, el = $('#sync'); if (!el) return;
-  if (!D || !D.configured()) { el.hidden = true; return; }
-  el.hidden = false; el.dataset.s = D.status; el.textContent = syncLabel(D);
+  if (!D) { el.hidden = true; return; }
+  el.hidden = false; el.dataset.s = D.status; el.textContent = !D.configured() ? 'Saved here · sync setup' : D.pending && D.connected && D.status !== 'syncing' ? 'Saved here · sync pending' : syncLabel(D);
   el.title = D.error || (D.connected ? 'Saved in your Google Drive' : 'Connect Google Drive in Accounts & setup');
 }
 function render() {
+  if(window.__cashbookLocal?.readError){CashbookUI.recoveryScreen();return;}
+  if(window.__cashbookLocal?.locked){CashbookUI.lockScreen();return;}
+  if(window.CashbookUI?.busy){pending=true;return;}
+  const focused=document.activeElement;if(focused&&$('#view').contains(focused)&&focused.matches('input,select,textarea')){pending=true;return;}
   updateSync();
   C = compute();
   if (!selMonth || !C.ms.includes(selMonth)) selMonth = C.cur;
@@ -394,18 +410,19 @@ function render() {
   document.querySelectorAll('#tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === tab));
   $('#fab').hidden = !db || !canWrite || !Object.keys(S.categories).length || tab === 'transactions';
   const v = $('#view');
-  if (!db) { v.innerHTML = `<div class="panel empty" style="margin-top:24px"><b>The shared ledger isn't reachable here</b>Open Family Cashbook from Claude while signed in to see and update the family's accounts.</div>`; return; }
+  if (!db) { v.innerHTML = `<div class="panel empty" style="margin-top:24px"><b>The shared ledger isn't reachable here</b>Open ReadyTrove Family Money from Claude while signed in to see and update the family's accounts.</div>`; return; }
   if (!st && S.ready.has('settings')) {
     const D = window.__cashbookLocal?.drive, drive = D && D.configured();
-    v.innerHTML = `<div class="panel empty" style="margin-top:24px"><b>${drive ? 'Welcome to Family Cashbook' : 'Start your family ledger'}</b>${drive ? 'Already using Family Cashbook on another device? Load your ledger from Google Drive. New here? Start a fresh ledger, then connect Drive in Accounts &amp; setup.' : 'Add your bank accounts, then plan monthly income, EMIs and expenses. Family members you share this with can log what actually happens.'}
-      <div class="row" style="margin-top:14px;justify-content:center">${drive ? `<button class="btn primary" data-act="drive-connect">${D.status === 'syncing' ? 'Loading…' : 'Load my ledger from Google Drive'}</button>` : ''}${canWrite ? `<button class="btn ${drive ? '' : 'primary'}" data-act="startledger">Start a new ledger</button>` : '<span class="dim">Ask the family head to set it up.</span>'}</div>
+    v.innerHTML = `<div class="panel empty" style="margin-top:24px"><b>${drive ? 'Welcome to ReadyTrove Family Money' : 'Start your family ledger'}</b>${drive ? 'Already using ReadyTrove Family Money on another device? Load your ledger from Google Drive. New here? Start a fresh ledger, then connect Drive in Accounts &amp; setup.' : 'Add your bank accounts, then plan monthly income, EMIs and expenses. You can record actual activity and compare it with your plan.'}
+      <div class="row" style="margin-top:14px;justify-content:center">${drive ? `<button class="btn primary" data-act="drive-connect">${D.status === 'syncing' ? 'Loading…' : 'Load my ledger from Google Drive'}</button>` : ''}<button class="btn" data-act="companion">Phone & laptop sync</button>${canWrite ? `<button class="btn ${drive ? '' : 'primary'}" data-act="startledger">Start a new ledger</button>` : '<span class="dim">Ask the family head to set it up.</span>'}</div>
       ${drive && D.error ? `<p class="hint" style="margin:10px auto 0;color:var(--bad)">${esc(D.error)}</p>` : ''}</div>`;
     return;
   }
   if (!st) return;
   if (tab === 'transfers') tab = 'transactions';
   C.minWarn = watchMinimums();
-  ({ overview, month, plan, loans, networth, business, transactions, setup })[tab]();
+  ({ overview, month, plan, loans, networth, business, transactions, setup, more:()=>CashbookUI.more() })[tab]();
+  CashbookUI.afterRender(tab);
 }
 
 function status(end, min) { return end < min ? `<span class="pill low">Below min</span>` : `<span class="pill ok">OK</span>`; }
@@ -420,6 +437,7 @@ function spark(accId) {
 }
 
 function overview() {
+ if(C.fxMissing.length){$('#view').innerHTML='<section class="section"><div class="panel pad"><h2>Reporting total needs FX rates</h2><p>Account balances are retained in their native currencies. Add rates before relying on combined cash, forecasts or net worth.</p><p>'+C.fxMissing.map(esc).join(', ')+'</p><button class="btn" data-feature="currency">Open currency accounts</button></div></section>';return;}
   const cur = C.cur, last = C.ms[C.ms.length - 1];
   const nowTot = C.total[cur] ?? 0;
   const ahead = C.ms.filter(m => m >= cur);
@@ -436,7 +454,7 @@ function overview() {
     <div class="panel kpi"><span class="l">Projected by ${mlabel(last)}</span><span class="v">${short(C.total[last] ?? 0)}</span><span class="s">EMIs &amp; loan interest this month ${inr(emi)}</span></div>
   </div>
   <div class="section">
-    <div class="section-head"><h2>Total cash, month by month</h2><span class="hint">Month-end balance of all accounts combined. Logged actuals replace the plan for their month. Dashed line: combined minimum balance.</span></div>
+    <div class="section-head"><h2>Total cash, month by month</h2><span class="hint">Month-end balance of all accounts combined. Budget rows retain expected remaining activity until marked complete; single-bill rows use actuals. Dashed line: combined minimum balance.</span></div>
     <div class="panel chart" id="chart"></div>
   </div>
   <div class="section grid2">
@@ -524,7 +542,7 @@ function month() {
       const a = actualVal(c, m), p = lk ? 0 : planVal(c, m); if (lk ? a == null : (!p && a == null)) return;
       const sec = sectionOf(c);
       if (sec.key !== grp) { grp = sec.key; out += `<tr class="grp"><td colspan="5">${esc(sec.label)}</td></tr>`; }
-      tp += p; ta += a ?? p;
+      tp += p; ta += eff(c,m);
       const d = a == null ? null : a - p;
       out += `<tr><td>${esc(c.name)}<div class="dim" style="font-size:12px">${esc(accName(c.account))}</div></td><td class="n">${p ? inr(p) : '<span class="dim">—</span>'}</td>
         <td class="n">${a == null ? '<span class="dim">not logged</span>' : `<span class="pill act">${inr(a)}</span>`}</td>
@@ -538,7 +556,7 @@ function month() {
   const trs = (S.transfers[m]?.items || []).filter(t => !lk || t.actual);
   const f = C.flow[m];
   $('#view').innerHTML = `
-  <div class="section"><div class="section-head">${monthBar()}<span class="hint">${lk ? 'This month is closed. It shows only confirmed entries, logged transfers and bank balances. Planned figures no longer count.' : 'Plan comes from the Plan tab. Logging an actual replaces the planned figure for that category this month.'}</span></div>
+  <div class="section"><div class="section-head">${monthBar()}<span class="hint">${lk ? 'This month is closed. It shows only confirmed entries, logged transfers and bank balances. Planned figures no longer count.' : 'Plan comes from the Plan tab. Budget rows retain the remaining plan until marked complete. Single-bill rows use actuals.'}</span></div>
   ${lk ? `<div class="alert okay"><span class="ic">✓</span><div><b>${mlabel(m)} is closed and locked.</b> ${f.confirmed ? '' : 'No entries were logged for it, so each account simply takes its bank balance. '}${m === closedThrough() && isAdmin && canWrite ? `<div style="margin-top:6px"><button class="btn small" data-act="reopen" data-m="${m}">Reopen ${mlabel(m)}</button> <span class="dim" style="font-size:12px">to correct a mistake</span></div>` : ''}</div></div>` : ''}</div>
   <div class="section"><div class="section-head"><h2>Account balances</h2><span class="hint">At month end, type each account's real balance from your bank. The difference is spending or income the app didn't capture. Later months then start from your real balance.</span></div>
     <div class="panel scroll"><table><thead><tr><th>Account</th><th class="n">Expected</th><th class="n">Bank balance</th><th class="n">Difference</th><th>Status</th><th class="n">Opening</th><th class="n">Money in</th><th class="n">Transfers in</th><th class="n">Money out</th><th class="n">Transfers out</th></tr></thead><tbody>
@@ -880,13 +898,13 @@ function minBalancePlan() {
   // Money an account can give from month m on without dropping below its own minimum afterwards.
   const spareFrom = (s, m) => Math.max(0, Math.floor(Math.min(...ms.filter(x => x >= m).map(x => C.rows[s.id][x].end - (+s.min || 0))) / 1000) * 1000 - (used[s.id] || 0));
   const out = [];
-  for (const a of C.accs) {
+  for (const a of C.accs.filter(a=>a.kind!=='Credit')) {
     const min = +a.min || 0, bad = ms.filter(m => C.rows[a.id][m].end < min);
     if (!bad.length) continue;
     const first = bad[0], after = ms.filter(m => m >= first);
     const worst = Math.max(...after.map(m => min - C.rows[a.id][m].end));
     const need = Math.ceil(worst / 1000) * 1000;
-    const srcs = C.accs.filter(s => canTransfer(s, a)).map(s => ({ s, sp: spareFrom(s, first) })).filter(x => x.sp > 0).sort((x, y) => y.sp - x.sp);
+    const srcs = C.accs.filter(s => s.kind!=='Credit' && canTransfer(s, a)).map(s => ({ s, sp: spareFrom(s, first) })).filter(x => x.sp > 0).sort((x, y) => y.sp - x.sp);
     let left = need; const moves = [];
     for (const { s, sp } of srcs) { if (left <= 0) break; const amt = Math.min(left, sp); used[s.id] = (used[s.id] || 0) + amt; left -= amt; moves.push({ from: s, to: a, amount: amt, month: first }); }
     out.push({ acc: a, first, months: bad.length, worst, need, moves, short: left });
@@ -919,7 +937,7 @@ function txRows(m) {
     const list = C.act[c.id]?.[m] || [];
     const misc = c.id.startsWith('c-misc');
     list.forEach(e => rows.push({ kind: 'entry', id: e.id, date: e.date || m + '-01', desc: misc && e.note ? e.note : c.name, sub: misc ? c.name : sec, note: misc ? '' : e.note, acc: e.accountId || c.account, accLabel: accName(e.accountId || c.account), status: 'Completed', amt: sign * (+e.amount || 0), by: e.by, cat: c.id }));
-    if (!list.length && !lk) { const p = planVal(c, m); if (p) rows.push({ kind: 'plan', id: c.id, date: m + '-01', desc: c.name, sub: sec + ' · plan', acc: c.account, accLabel: accName(c.account), status: 'Planned', amt: sign * p, cat: c.id }); }
+    if (!lk) { const p=CashbookDomain.categoryProjection({planned:planVal(c,m),actual:list.reduce((n,e)=>n+Number(e.amount||0),0),hasActual:!!list.length,complete:c.completedMonths?.[m],mode:c.forecastMode||'budget'}).remaining; if (p) rows.push({ kind: 'plan', id: c.id, date: m + '-01', desc: c.name, sub: sec + ' · plan', acc: c.account, accLabel: accName(c.account), status: 'Planned', amt: sign * p, cat: c.id }); }
   }
   Object.values(S.entries).filter(e => e.month === m && !S.categories[e.categoryId]).forEach(e => rows.push({ kind: 'entry', id: e.id, date: e.date, desc: 'Deleted category', sub: '', note: e.note, acc: e.accountId, accLabel: accName(e.accountId), status: 'Completed', amt: -(+e.amount || 0), by: e.by }));
   for (const [pm, d] of Object.entries(S.transfers)) for (const t of (d.items || [])) {
@@ -985,7 +1003,7 @@ function applyTxFilter() {
   if (s) s.innerHTML = `<span class="pos">In ${inr(inn)}</span> · Out ${inr(out)} · <b>Net ${inr(inn - out)}</b>`;
 }
 function exportTx() {
-  const m = selMonth, q = s => '"' + String(s ?? '').replace(/"/g, '""') + '"';
+  const m = selMonth, q = CashbookDomain.csvCell;
   const vis = new Set([...document.querySelectorAll('.txtable tbody tr[data-status]')].map((tr, i) => tr.hidden ? -1 : i));
   const rows = txRows(m).filter((r, i) => vis.has(i));
   const csv = ['Date,Description,Category,Account,Status,Amount (INR),Note', ...rows.map(r => [r.date, r.desc, r.sub, r.accLabel, r.status, r.transfer ? r.amt : r.amt, r.note || ''].map(q).join(','))].join('\r\n');
@@ -1028,14 +1046,16 @@ function holdingValue(h, m) {
   return v;
 }
 function netWorthAt(m) {
-  const banks = C.accs.reduce((s, a) => s + (C.rows[a.id][m]?.end ?? 0), 0);
-  const assets = holdList('asset').reduce((s, h) => s + holdingValue(h, m), 0);
+  const banks = C.accs.reduce((s,a)=>s+(a.kind==='Credit'?Math.max(0,C.rows[a.id][m]?.end??0):(C.rows[a.id][m]?.end??0)),0);
+  const foreign=C.fxByMonth?.[m];
+  const assets = (foreign?.assetsINR||0) + holdList('asset').reduce((s, h) => s + holdingValue(h, m), 0);
   const loanList = catList().filter(c => c.group === 'Loans & EMIs').map(loanInfo).filter(x => x.has);
   const loans = loanList.reduce((s, x) => s + loanBalAt(x, m), 0);
-  const other = holdList('liability').reduce((s, h) => s + holdingValue(h, m), 0);
+  const other=(foreign?.debtINR||0)+holdList('liability').filter(h=>!h.accountId||!S.accounts[h.accountId]).reduce((s,h)=>s+holdingValue(h,m),0)+C.accs.filter(a=>a.kind==='Credit').reduce((n,a)=>n-Math.min(0,C.rows[a.id][m]?.end??(+a.opening||0)),0);
   return { banks, assets, loans, other, totalA: banks + assets, totalL: loans + other, net: banks + assets - loans - other };
 }
 function networth() {
+ if(C.fxMissing.length)return overview();
   const m = selMonth, cur = C.cur, first = C.ms[0], last = C.ms[C.ms.length - 1];
   const nw = netWorthAt(m), start = netWorthAt(first), end = netWorthAt(last);
   const series = C.ms.map(x => ({ m: x, v: netWorthAt(x).net }));
@@ -1043,8 +1063,8 @@ function networth() {
   const noBal = loanAll.filter(x => !x.has);
   const row = (name, sub, val, act) => `<tr><td><div style="font-weight:600">${name}</div>${sub ? `<div class="dim" style="font-size:12px">${sub}</div>` : ''}</td><td class="n">${inr(val)}</td><td class="n" style="width:1%">${act || ''}</td></tr>`;
   const edit = h => canWrite ? `<button class="iconbtn" data-act="hold-edit" data-id="${esc(h.id)}" title="Edit" aria-label="Edit ${esc(h.name)}">✎</button>` : '';
-  const assetsRows = holdList('asset').map(h => row(esc(h.name), esc(h.type || '') + (h.growth ? ` · grows ${h.growth}% a year` : '') + (h.linkCat && S.categories[h.linkCat] ? ` · plus “${esc(S.categories[h.linkCat].name)}” payments` : ''), holdingValue(h, m), edit(h))).join('');
-  const liabRows = loanAll.filter(x => x.has).map(x => row(esc(x.c.name), 'Loan · ' + (x.rate ? x.rate + '% · ' : '') + (x.end ? 'ends ' + mlabel(x.end) : 'no end date'), loanBalAt(x, m), `<button class="iconbtn" data-act="goloan" data-cat="${x.c.id}" title="Open loan" aria-label="Open ${esc(x.c.name)}">›</button>`)).join('')
+  const assetsRows = Object.entries(C.fxByMonth?.[m]?.valued||{}).filter(([id,r])=>r.inr>0).map(([id,r])=>row(esc(S.fxAccounts[id].name),r.currency+' · '+CashbookCurrency.format(r.native,r.currency),r.inr,'')).join('')+holdList('asset').map(h => row(esc(h.name), esc(h.type || '') + (h.growth ? ` · grows ${h.growth}% a year` : '') + (h.linkCat && S.categories[h.linkCat] ? ` · plus “${esc(S.categories[h.linkCat].name)}” payments` : ''), holdingValue(h, m), edit(h))).join('');
+  const liabRows = Object.entries(C.fxByMonth?.[m]?.valued||{}).filter(([id,r])=>S.fxAccounts[id].kind==='card'&&r.inr<0).map(([id,r])=>row(esc(S.fxAccounts[id].name),r.currency+' credit card',-r.inr,'')).join('')+loanAll.filter(x => x.has).map(x => row(esc(x.c.name), 'Loan · ' + (x.rate ? x.rate + '% · ' : '') + (x.end ? 'ends ' + mlabel(x.end) : 'no end date'), loanBalAt(x, m), `<button class="iconbtn" data-act="goloan" data-cat="${x.c.id}" title="Open loan" aria-label="Open ${esc(x.c.name)}">›</button>`)).join('')
     + holdList('liability').map(h => row(esc(h.name), esc(h.type || '') + (h.growth ? ` · changes ${h.growth}% a year` : ''), holdingValue(h, m), edit(h))).join('');
   const chg = nw.net - start.net;
   $('#view').innerHTML = `
@@ -1110,6 +1130,7 @@ function holdModal(id, side) {
   openModal(`<h2>${id ? 'Edit' : 'Add'} ${sd === 'asset' ? 'asset' : 'liability'}</h2>
     <div class="form">
       <label class="f full">Name<input id="h-name" value="${esc(h.name)}" placeholder="${sd === 'asset' ? 'e.g. Aura Velune Villa, Ooty' : 'e.g. HDFC credit card'}"></label>
+      ${sd==='liability'?'<label class="f full">Already represented by an account?<select id="h-account"><option value="">Separate liability</option>'+C.accs.filter(a=>a.kind==='Credit').map(a=>'<option value="'+a.id+'" '+(h.accountId===a.id?'selected':'')+'>'+esc(a.name)+' (counted automatically)</option>').join('')+'</select></label>':''}
       <label class="f">Type<select id="h-type">${types.map(t => `<option ${t === h.type ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
       <label class="f">${sd === 'asset' ? 'Current value' : 'Amount owed'} (₹)<input id="h-val" inputmode="decimal" value="${h.value ? (+h.value).toLocaleString('en-IN') : ''}"></label>
       <label class="f">Value date<input type="date" id="h-asof" value="${esc(h.asOf || todayD)}"></label>
@@ -1127,7 +1148,7 @@ function setup() {
   <div class="section"><div class="section-head"><div><h2>Accounts</h2><div class="hint">Opening balance is the balance at the start of ${mlabel(st.start)}. Changes save when you leave the field.</div></div>${canWrite ? '<button class="btn small primary" data-act="addacc">+ Account</button>' : ''}</div>
   <div class="panel scroll"><table><thead><tr><th>Name</th><th>Type</th><th class="n">Opening balance</th><th class="n">Minimum balance</th><th>Notes</th><th></th></tr></thead><tbody>
   ${C.accs.map(a => `<tr><td><input id="a-n-${a.id}" data-acc="${a.id}" data-f="name" value="${esc(a.name)}" ${canWrite ? '' : 'readonly'}></td>
-    <td><select id="a-k-${a.id}" data-acc="${a.id}" data-f="kind" ${canWrite ? '' : 'disabled'} title="NRE accounts can only receive money from other NRE accounts">${[['Savings', 'Resident savings'], ['NRO', 'NRO'], ['NRE', 'NRE'], ['Current', 'Current'], ['Other', 'Other']].map(([v, l]) => `<option value="${v}" ${accKind(a) === v ? 'selected' : ''}>${l}</option>`).join('')}</select></td>
+    <td><select id="a-k-${a.id}" data-acc="${a.id}" data-f="kind" ${canWrite ? '' : 'disabled'} title="NRE accounts can only receive money from other NRE accounts">${[['Savings', 'Resident savings'], ['NRO', 'NRO'], ['NRE', 'NRE'], ['Current', 'Current'], ['Credit', 'Credit card (negative = owed)'], ['Other', 'Other']].map(([v, l]) => `<option value="${v}" ${accKind(a) === v ? 'selected' : ''}>${l}</option>`).join('')}</select></td>
     <td class="n"><input id="a-o-${a.id}" data-acc="${a.id}" data-f="opening" value="${(+a.opening || 0).toLocaleString('en-IN')}" inputmode="decimal" style="text-align:right;width:130px" ${canWrite ? '' : 'readonly'}></td>
     <td class="n"><input id="a-m-${a.id}" data-acc="${a.id}" data-f="min" value="${(+a.min || 0).toLocaleString('en-IN')}" inputmode="decimal" style="text-align:right;width:120px" ${canWrite ? '' : 'readonly'}></td>
     <td><input id="a-t-${a.id}" data-acc="${a.id}" data-f="notes" value="${esc(a.notes || '')}" style="width:100%;min-width:200px" ${canWrite ? '' : 'readonly'}></td>
@@ -1153,8 +1174,8 @@ function setup() {
   <div class="panel pad"><div class="row" style="gap:8px 16px;margin-bottom:10px">
     <span class="pill ${P.installed ? 'ok' : 'act'}">${P.installed ? 'Installed as an app' : 'Opens offline after the first visit'}</span>
     <span class="pill ${P.persisted ? 'ok' : P.persisted === false ? 'low' : 'act'}">${P.persisted ? 'Storage protected' : P.persisted === false ? 'Storage not protected yet' : 'Checking storage…'}</span></div>
-    <p class="hint" style="margin:0 0 10px">${P.installed ? 'Family Cashbook opens from its own icon, with or without internet.' : 'Install it to open Family Cashbook from its own icon, with or without internet.'} ${P.persisted ? 'The browser will keep your ledger even when disk space runs low.' : 'Installing the app usually lets the browser protect your ledger from automatic clean-up.'} Clearing the browser's history or site data still deletes it, so keep backups.</p>
-    <div class="row">${P.canInstall ? '<button class="btn primary" data-act="pwa-install">Install Family Cashbook</button>' : P.installed ? '' : '<span class="hint" style="margin:0">To install: in Chrome, open the ⋮ menu → <b>Cast, save and share → Install page as app</b>. In Edge: ⋯ menu → <b>Apps → Install this site as an app</b>.</span>'}${P.persisted === false ? '<button class="btn" data-act="pwa-protect">Protect storage</button>' : ''}</div></div></div>`; })() : ''}
+    <p class="hint" style="margin:0 0 10px">${P.installed ? 'ReadyTrove Family Money opens from its own icon, with or without internet.' : 'Install it to open Family Cashbook from its own icon, with or without internet.'} ${P.persisted ? 'The browser will keep your ledger even when disk space runs low.' : 'Installing the app usually lets the browser protect your ledger from automatic clean-up.'} Clearing the browser's history or site data still deletes it, so keep backups.</p>
+    <div class="row">${P.canInstall ? '<button class="btn primary" data-act="pwa-install">Install ReadyTrove Family Money</button>' : P.installed ? '' : '<span class="hint" style="margin:0">To install: in Chrome, open the ⋮ menu → <b>Cast, save and share → Install page as app</b>. In Edge: ⋯ menu → <b>Apps → Install this site as an app</b>.</span>'}${P.persisted === false ? '<button class="btn" data-act="pwa-protect">Protect storage</button>' : ''}</div></div></div>`; })() : ''}
   ${window.__cashbookLocal ? `<div class="section"><h2>Backup</h2>
   <div class="panel pad"><p class="hint" style="margin:0 0 10px">${window.__cashbookLocal?.drive?.connected ? 'Google Drive keeps your ledger safe. A backup file is an extra copy you can keep anywhere.' : (window.__cashbookLocal?.desktop ? 'The app already keeps daily copies in the Backups folder. A backup file is an extra copy you can keep anywhere, such as a USB stick or email.' : 'Without Drive sync your ledger is stored only on this device. Save a backup regularly so you can restore it on a new device.')}</p>
   <div class="row"><button class="btn primary" data-act="backup">Save a backup</button><label class="btn" for="restore-file">Restore from a backup</label><input type="file" id="restore-file" accept=".json,application/json" hidden></div></div></div>`
@@ -1170,7 +1191,7 @@ let entryType = 'expense';
 function entryModal(catId, o = {}) {
   const ed = o.entryId ? S.entries[o.entryId] : null;
   const c0 = catId ? S.categories[catId] : null; if (c0) entryType = c0.type === 'income' ? 'income' : 'expense';
-  entryModal.o = { tx: o.tx, date: o.date };
+  entryModal.o = { tx: o.tx, date: o.date };entryModal.draftId=o.entryId||newId('e');
   const cats = catList().filter(c => (c.type === 'income') === (entryType === 'income') && !c.id.startsWith('c-misc'));
   const sel = c0 || (o.tx ? null : cats[0]);
   let date = ed ? ed.date : o.date || (c0 && selMonth && selMonth !== todayM ? selMonth + '-01' : todayD);
@@ -1200,6 +1221,7 @@ function catModal(id, presetBiz, presetGroup) {
       <label class="f">Type<select id="c-type"><option value="expense" ${c.type !== 'income' ? 'selected' : ''}>Money out</option><option value="income" ${c.type === 'income' ? 'selected' : ''}>Money in</option></select></label>
       <label class="f">Belongs to<select id="c-owner"><option value="">Family</option>${bizList().map(b => `<option value="${b.id}" ${b.id === owner ? 'selected' : ''}>${esc(b.name)} (business)</option>`).join('')}</select></label>
       <label class="f" id="c-group-wrap" ${owner || c.type === 'income' ? 'hidden' : ''}>Group<select id="c-group">${FAMILY_GROUPS.map(g => `<option ${g === c.group ? 'selected' : ''}>${esc(g)}</option>`).join('')}</select></label>
+      <label class="f">Forecast mode<select id="c-mode"><option value="budget" ${c.forecastMode!=='bill'?'selected':''}>Budget — retain remaining amount</option><option value="bill" ${c.forecastMode==='bill'?'selected':''}>Single bill — use actual</option></select></label>
       <label class="f full">Account<select id="c-acc">${C.accs.map(a => `<option value="${a.id}" ${a.id === c.account ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>
     </div>
     <div class="panel pad" style="background:var(--sunk)"><h3 style="margin-bottom:8px">Fill a fixed amount</h3><div class="form">
@@ -1223,7 +1245,7 @@ function confirmTwice(btn, key) {
 document.addEventListener('click', async ev => {
   const t = ev.target.closest('[data-tab],[data-act]');
   if (!t) { const row = ev.target.closest('[data-loan]'); if (row && !ev.target.closest('input,button,select')) { selLoan = row.dataset.loan; showSched = true; loans._scroll = true; render(); } return; }
-  if (t.dataset.tab) { tab = t.dataset.tab; try { history.replaceState(null, '', '#' + tab); } catch (e) {} render(); window.scrollTo(0, 0); return; }
+  if (t.dataset.tab) { if(t.dataset.tab==='more')CashbookUI.reset();tab = t.dataset.tab; try { history.replaceState(null, '', '#' + tab); } catch (e) {} render(); window.scrollTo(0, 0); return; }
   const a = t.dataset.act;
   if (a === 'scrim') { if (ev.target === t) closeModal(); return; }
   if (a === 'close') return closeModal();
@@ -1263,8 +1285,10 @@ document.addEventListener('click', async ev => {
   }
   if (a === 'reopen') {
     if (!confirmTwice(t, 'ro' + t.dataset.m)) return;
-    const prev = addM(t.dataset.m, -1);
-    return write(() => db.doc('settings/main').update({ closedThrough: S.settings.start && prev >= S.settings.start ? prev : '' }), mlabel(t.dataset.m) + ' reopened. Fix what you need, then re-enter a bank balance to close it again.');
+    if(t.dataset.m!==closedThrough()||!isAdmin||!canWrite)return toast('Only the latest closed month can be reopened.');
+    const prev=addM(t.dataset.m,-1),at=new Date().toISOString();
+    if(!db.applyBatch)return toast('This adapter does not support atomic month review.');
+    return write(()=>db.applyBatch([{type:'set',path:'features/'+newId('audit'),data:{type:'audit',action:'month-reopen',month:t.dataset.m,at,by:uid||''}},{type:'update',path:'settings/main',data:{closedThrough:S.settings.start&&prev>=S.settings.start?prev:'',reopenedAt:at,reopenedBy:uid||''}}]),mlabel(t.dataset.m)+' reopened. Use Review and close after corrections.');
   }
   if (a === 'gomonth') { selMonth = t.dataset.m; tab = 'month'; render(); window.scrollTo(0, 0); return; }
   if (a === 'pprev') { planFrom = addM(planFrom, -12); if (planFrom < C.ms[0]) planFrom = C.ms[0]; return render(); }
@@ -1274,10 +1298,10 @@ document.addEventListener('click', async ev => {
   if (a === 'saveentry') {
     const amt = num($('#e-amt').value), date = $('#e-date').value; let cat = $('#e-cat').value;
     if (!cat) return toast('Pick a category first.');
-    if (!amt) return toast('Enter an amount above zero.');
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return toast('Pick a date for the entry.');
+    if (amt<=0) return toast('Enter an amount above zero.');
+    try{CashbookDomain.dateISO(date);}catch(e){return toast(e.message);}if(!C.ms.includes(date.slice(0,7)))return toast('Choose a date within the plan.');
     if (locked(date.slice(0, 7))) return toast(mlabel(date.slice(0, 7)) + ' is closed. Pick a date from ' + mlabel(firstOpen()) + ' on.');
-    const note = $('#e-note').value.trim(), editId = t.dataset.id;
+    const note = $('#e-note').value.trim(), editId = t.dataset.id, saveId=editId||entryModal.draftId;
     if (cat === '__misc') {
       const inc = entryType === 'income'; cat = inc ? 'c-misc-in' : 'c-misc-out';
       if (!note) return toast('Add a short description for this one-off transaction.');
@@ -1286,13 +1310,15 @@ document.addEventListener('click', async ev => {
     const old = editId ? S.entries[editId] : null;
     const body = { date, month: date.slice(0, 7), categoryId: cat, accountId: $('#e-acc').value, amount: amt, note, by: old?.by ?? (uid || ''), createdAt: old?.createdAt || new Date().toISOString(), ...(old ? { editedAt: new Date().toISOString() } : {}) };
     t.disabled = true;
-    if (await write(() => editId ? db.doc('entries/' + editId).set(body) : db.collection('entries').add(body), editId ? 'Transaction updated' : 'Saved')) closeModal(); else t.disabled = false;
+    if (await write(() => db.doc('entries/' + saveId).set(body), editId ? 'Transaction updated' : 'Saved')) closeModal(); else t.disabled = false;
     return;
   }
   if (a === 'delentry') { if (!confirmTwice(t, 'e' + t.dataset.id)) return; return write(() => db.doc('entries/' + t.dataset.id).delete(), 'Entry deleted'); }
   if (a === 'editcat') return catModal(t.dataset.cat);
+  if (a === 'companion') return CashbookCompanion.open();
   if (a === 'drive-connect' || a === 'drive-sync') {
     const D = window.__cashbookLocal?.drive; if (!D) return;
+    if(!window.__cashbookLocal.encrypted)return CashbookCompanion.open();
     try { await D.connect(); toast(a === 'drive-connect' ? 'Google Drive connected. Your ledger is in sync.' : 'Synced with Google Drive'); } catch (e) { toast(e?.message || 'Could not reach Google Drive.'); }
     return render();
   }
@@ -1300,7 +1326,7 @@ document.addEventListener('click', async ev => {
     if (!confirmTwice(t, 'driveoff')) return;
     await window.__cashbookLocal.drive.disconnect(); toast('This device is disconnected. Your ledger stays here and in Drive.'); return render();
   }
-  if (a === 'pwa-install') { const ok = await window.__cashbookLocal.pwa.install(); if (ok) toast('Installed. Open Family Cashbook from its icon, even offline.'); return render(); }
+  if (a === 'pwa-install') { const ok = await window.__cashbookLocal.pwa.install(); if (ok) toast('Installed. Open ReadyTrove Family Money from its icon, even offline.'); return render(); }
   if (a === 'pwa-protect') { await window.__cashbookLocal.pwa.protect(); toast(window.__cashbookLocal.pwa.persisted ? 'Storage protected' : 'The browser declined for now. Installing the app usually allows it.'); return render(); }
   if (a === 'desk-open') { window.__cashbookLocal.desktop.openFolder(); return; }
   if (a === 'desk-choose') { const r = await window.__cashbookLocal.desktop.chooseFolder(); if (r) { toast(r.reload ? 'Using the ledger already in that folder.' : 'Your ledger now saves to the new folder.'); render(); } return; }
@@ -1316,18 +1342,14 @@ document.addEventListener('click', async ev => {
     return;
   }
   if (a === 'delbiz') { if (!confirmTwice(t, 'b' + t.dataset.id)) return; if (await write(() => db.doc('businesses/' + t.dataset.id).delete(), 'Business deleted')) closeModal(); return; }
-  if (a === 'startledger') {
-    const start = todayM, end = addM(todayM, 23); t.disabled = true;
-    const ok = await write(async () => { await db.doc('settings/main').set({ start, end, currency: 'INR' }); if (!Object.keys(S.accounts).length) await db.doc('accounts/' + newId('a')).set({ name: 'Main savings', opening: 0, min: 0, notes: '', order: 0 }); }, 'Ledger started. Add your accounts next.');
-    if (ok) { tab = 'setup'; schedule(); } else t.disabled = false;
-    return;
-  }
+  if (a === 'startledger') return CashbookUI.onboard();
   if (a === 'savecat') {
     const id = t.dataset.id || newId('c'); const old = S.categories[id];
     const name = $('#c-name').value.trim(); if (!name) return toast('Give the row a name.');
     const type = $('#c-type').value, owner = $('#c-owner').value;
     const group = owner ? 'Business' : type === 'income' ? 'Income' : $('#c-group').value;
-    const body = { name, type, group, business: owner || null, account: $('#c-acc').value, order: old?.order ?? 999, amounts: { ...(old?.amounts || {}) } };
+    const body = { ...(old || {}), name, type, group, business: owner || null, account: $('#c-acc').value, order: old?.order ?? 999, amounts: { ...(old?.amounts || {}) } };
+    body.forecastMode=$('#c-mode').value;
     const fill = $('#c-fill').value.trim();
     if (fill !== '') {
       const v = num(fill), every = +$('#c-every').value, from = $('#c-from').value, to = $('#c-to').value;
@@ -1362,8 +1384,9 @@ document.addEventListener('click', async ev => {
     const value = num($('#h-val').value); if (!value) return toast('Enter the value.');
     const gr = $('#h-growth').value.trim(), growth = gr === '' ? 0 : num(gr);
     if (growth < -50 || growth > 50) return toast('Enter the yearly growth as a percentage, e.g. 6.');
+    const represented=$('#h-account')?.value||'';if(t.dataset.side==='liability'&&$('#h-type').value==='Credit card'&&C.accs.some(a=>a.kind==='Credit')&&!represented)return toast('Select the represented card account, or use another liability type for a separate debt.');
     const id = t.dataset.id || newId('h');
-    const body = { side: t.dataset.side, name, type: $('#h-type').value, value, asOf: $('#h-asof').value || todayD, growth, linkCat: $('#h-link').value || '' };
+    const body = { accountId:represented,side: t.dataset.side, name, type: $('#h-type').value, value, asOf: $('#h-asof').value || todayD, growth, linkCat: $('#h-link').value || '' };
     t.disabled = true;
     if (await write(() => db.doc('holdings/' + id).set(body), 'Saved')) closeModal(); else t.disabled = false;
     return;
@@ -1375,10 +1398,11 @@ document.addEventListener('click', async ev => {
   if (a === 'tx-edit-entry') { const e = S.entries[t.dataset.id]; if (e) entryModal(e.categoryId, { entryId: t.dataset.id }); return; }
   if (a === 'tx-confirm-plan') {
     const c = S.categories[t.dataset.cat], m = selMonth; if (!c || locked(m)) return;
-    const body = { date: m === todayM ? todayD : m + '-01', month: m, categoryId: c.id, accountId: c.account, amount: planVal(c, m), note: '', by: uid || '', createdAt: new Date().toISOString() };
+    const body = { date: m === todayM ? todayD : m + '-01', month: m, categoryId: c.id, accountId: c.account, amount: CashbookDomain.categoryProjection({planned:planVal(c,m),actual:actualVal(c,m)||0,hasActual:actualVal(c,m)!==null,complete:c.completedMonths?.[m],mode:c.forecastMode||'budget'}).remaining, note: '', by: uid || '', createdAt: new Date().toISOString() };
     return write(() => db.collection('entries').add(body), c.name + ' confirmed');
   }
   if (a === 'tx-skip-plan') {
+    const category=S.categories[t.dataset.cat];if(category&&actualVal(category,t.dataset.m)!==null)return write(()=>db.doc('categories/'+category.id).update({completedMonths:{...(category.completedMonths||{}),[t.dataset.m]:true}}),'Remaining budget marked complete');
     if (!confirmTwice(t, 'skip' + t.dataset.cat)) return;
     return write(() => db.doc('categories/' + t.dataset.cat).update({ amounts: { [t.dataset.m]: 0 } }), 'Removed from ' + mlabel(t.dataset.m) + '\'s plan');
   }
@@ -1495,13 +1519,7 @@ document.addEventListener('change', async ev => {
     if (v !== null) el.value = v.toLocaleString('en-IN');
     const ref = db.doc('balances/' + m);
     const ok = await write(() => S.balances[m] ? ref.update({ values: { [acc]: v }, updatedBy: uid || '', updatedAt: new Date().toISOString() }) : ref.set({ month: m, values: { [acc]: v }, updatedBy: uid || '', updatedAt: new Date().toISOString() }), v === null ? 'Bank balance cleared' : 'Bank balance saved');
-    if (ok && v !== null) {
-      const vals = { ...(S.balances[m]?.values || {}), [acc]: v };
-      const all = C.accs.every(a => vals[a.id] !== null && vals[a.id] !== undefined && vals[a.id] !== '' && isFinite(+vals[a.id]));
-      if (all && m > closedThrough()) {
-        if (await write(() => db.doc('settings/main').update({ closedThrough: m, closedAt: new Date().toISOString(), closedBy: uid || '' }))) toast(mlabel(m) + ' is closed. It and earlier months are now locked.');
-      }
-    }
+    if(ok&&v!==null)toast('Balance saved. Use Review and close month after checking all accounts.');
     return;
   }
   if (el.classList.contains('cell')) {
@@ -1525,6 +1543,8 @@ document.addEventListener('change', async ev => {
 });
 window.addEventListener('resize', () => { if (!C) return; if (tab === 'overview') drawChart($('#chart')); if (tab === 'networth') render(); });
 
+CashbookUI.attach({state:()=>S,computed:()=>C,actualComputed:()=>compute(true),refresh:schedule,quickEntry:()=>{txModal('expense');const amount=$('#e-amt');if(amount){amount.value='';amount.focus();}},db:()=>db,month:()=>selMonth,uid:()=>uid||'',canWrite:()=>canWrite,locked,modal:openModal,close:closeModal,toast,go:t=>{tab=t;render();window.scrollTo(0,0);}});
+window.addEventListener('cashbook-unlock',schedule);
 // ---------- boot ----------
 (async () => {
   try { db = await window.claude?.use?.('db'); } catch (e) { db = null; }
@@ -1535,11 +1555,11 @@ window.addEventListener('resize', () => { if (!C) return; if (tab === 'overview'
     } catch (e) {}
   }
   window.addEventListener('cashbook-pwa', () => { if (tab === 'setup' && !$('#modal').innerHTML) schedule(); });
-  window.__cashbookLocal?.drive?.onChange(() => { updateSync(); if ((tab === 'setup' || !S.settings) && !$('#modal').innerHTML) schedule(); });
+  window.__cashbookLocal?.drive?.onChange(() => { updateSync(); if ((tab === 'setup' || (tab === 'more' && $('#view').dataset.screen === 'companion') || !S.settings) && !$('#modal').innerHTML) schedule(); });
   if (!db) { render(); return; }
   const onErr = e => { if (e?.code !== 'revoked') toast('Lost live updates. Reload the page to reconnect.'); };
   db.doc('settings/main').onSnapshot(s => { S.settings = s.exists ? s.data() : null; S.ready.add('settings'); schedule(); }, onErr);
-  for (const col of ['accounts', 'categories', 'entries', 'businesses', 'holdings']) {
+  for (const col of ['accounts', 'categories', 'entries', 'businesses', 'holdings', 'features', 'family', 'fxAccounts','fxEntries','fxTransfers','fxPlans','fxRates','fxBalances']) {
     db.collection(col).onSnapshot(q => { const o = {}; q.docs.forEach(d => o[d.id] = { ...d.data(), id: d.id }); S[col] = o; S.ready.add(col); schedule(); }, onErr);
   }
   db.collection('transfers').onSnapshot(q => { const o = {}; q.docs.forEach(d => { const x = d.data(); o[x.month || d.id] = x; }); S.transfers = o; schedule(); }, onErr);

@@ -1,13 +1,13 @@
 {
   "appId": "com.familycashbook.app",
-  "appName": "Family Cashbook",
+  "appName": "ReadyTrove Family Money",
   "webDir": "www",
   "android": {
     "allowMixedContent": false,
-    "backgroundColor": "#3340A0"
+    "backgroundColor": "#F5F8F7"
   },
   "ios": {
     "contentInset": "never",
-    "backgroundColor": "#3340A0"
+    "backgroundColor": "#F5F8F7"
   }
 }

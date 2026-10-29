@@ -6,3 +6,10 @@ out/
 *.jks
 *-base64.txt
 .DS_Store
+
+test-artifacts/
+
+server/data/
+*.sqlite*
+.env
+.env.*

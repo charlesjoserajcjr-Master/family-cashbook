@@ -11,7 +11,9 @@ if (!app.requestSingleInstanceLock()) { app.quit(); }
 const cfgFile = () => path.join(app.getPath('userData'), 'settings.json');
 const readCfg = () => { try { return JSON.parse(fs.readFileSync(cfgFile(), 'utf8')); } catch (e) { return {}; } };
 const writeCfg = c => { fs.mkdirSync(path.dirname(cfgFile()), { recursive: true }); fs.writeFileSync(cfgFile(), JSON.stringify(c, null, 1)); };
-const dataDir = () => readCfg().dataDir || path.join(app.getPath('documents'), 'Family Cashbook');
+const testRoot=process.env.CASHBOOK_TEST_MODE==='1'&&!app.isPackaged?process.env.CASHBOOK_TEST_DATA_DIR:null;
+if(testRoot){fs.mkdirSync(path.join(path.resolve(testRoot),'settings'),{recursive:true});app.setPath('userData',path.join(path.resolve(testRoot),'settings'));}
+const dataDir = () => testRoot?path.join(path.resolve(testRoot),'ledger'):readCfg().dataDir || path.join(app.getPath('documents'), app.getName()==='Family Cashbook Preview'?'Family Cashbook Preview':'Family Cashbook');
 const dataFile = (dir = dataDir()) => path.join(dir, 'family-cashbook-data.json');
 
 function safeWrite(file, text) {
@@ -31,7 +33,7 @@ function dailyBackup(text) {
 }
 function saveData(text) { safeWrite(dataFile(), text); dailyBackup(text); }
 
-ipcMain.handle('data:read', () => { try { return fs.readFileSync(dataFile(), 'utf8'); } catch (e) { return null; } });
+ipcMain.handle('data:read', () => { try { return fs.readFileSync(dataFile(), 'utf8'); } catch(e){if(e.code==='ENOENT')return null;throw e;} });
 ipcMain.handle('data:write', (e, text) => { saveData(text); return true; });
 ipcMain.on('data:writeSync', (e, text) => { try { saveData(text); e.returnValue = true; } catch (err) { e.returnValue = false; } });
 ipcMain.handle('data:info', () => ({ dir: dataDir(), file: dataFile(), backups: path.join(dataDir(), 'Backups') }));
@@ -58,9 +60,12 @@ let win = null;
 function createWindow() {
   win = new BrowserWindow({
     width: 1440, height: 920, minWidth: 900, minHeight: 600,
-    title: 'Family Cashbook', backgroundColor: '#F4F5F8', icon: path.join(__dirname, 'www', 'icons', 'icon-512.png'),
+    title: 'ReadyTrove Family Money', backgroundColor: '#F5F8F7', icon: path.join(__dirname, 'www', 'icons', 'icon-512.png'),
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, spellcheck: false },
   });
+  let closeApproved=false,closing=false,closeTimer;
+  win.on('close',e=>{if(closeApproved)return;e.preventDefault();if(closing)return;closing=true;win.webContents.send('data:before-close');closeTimer=setTimeout(()=>{closing=false;dialog.showErrorBox('Close postponed','The ledger has not acknowledged a completed save. Keep the app open and export or retry your changes.');},30000);});
+  ipcMain.on('data:close-ready',(e,ok)=>{if(e.sender!==win.webContents||!closing)return;clearTimeout(closeTimer);closing=false;if(ok){closeApproved=true;win.close();}});
   win.loadFile(path.join(__dirname, 'www', 'index.html'));
   // Links to websites open in the normal browser, never inside the app.
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/i.test(url)) shell.openExternal(url); return { action: 'deny' }; });

@@ -34,7 +34,7 @@ App Store signing and upload get added once the Apple Developer account (paid ye
 
 ## Windows desktop app (fully offline)
 
-Every change to the app builds a Windows version automatically (**Actions → Build Windows desktop app**).
+Windows builds are manual (**Actions → Build Windows desktop app → Run workflow**). Leave **publish** off for build-only checks; publishing requires an explicit main-branch run with **publish** enabled.
 On the **Releases** page, open the newest *Windows desktop app* and download
 `Family-Cashbook-Setup-….exe` (installs with Start-menu and desktop shortcuts) or the Portable `.exe`
 (runs without installing, e.g. from a USB stick). It needs no internet at all. The ledger is saved as
@@ -96,3 +96,36 @@ personal use. Before a public Play Store / App Store release, set the audience t
 | `.github/workflows/` | Android build, upload-key creator, iPhone check build, web app publishing |
 
 Never put real financial data or backup files in this repository.
+
+## Continuing the planning/reliability draft
+
+This branch is an implementation draft. Read [docs/IMPLEMENTATION-STATUS.md](docs/IMPLEMENTATION-STATUS.md) for completed work, exact test evidence and release blockers; [docs/MIGRATION.md](docs/MIGRATION.md) before using a copied ledger; and [docs/SERVICE-DESIGN.md](docs/SERVICE-DESIGN.md) for the proposed authenticated family/billing boundary.
+
+With Node 22+:
+
+```sh
+npm install
+npm test
+npm run prepare-web
+npx playwright install chromium
+npm run test:browser
+```
+
+`npm test` uses synthetic records and needs no merchant credentials. Browser checks produce images in `test-artifacts/`. Native release builds and real Drive OAuth/conditional writes need separate validation. The added `verify.yml` workflow runs on pull requests and does not publish an app.
+
+Working-ledger encryption is optional and uses an unrecoverable passphrase. Earlier plaintext backups remain plaintext. Lock is manual; independent family identities, private-account authorization, full multi-currency and real purchase validation are not implemented by this draft. Do not describe the Plans preview or device IDs as those features.
+
+
+## Family files, currency and purchase integration
+
+Read [CONTINUATION-STATUS.md](docs/CONTINUATION-STATUS.md) for the current implementation scope and validation limits, [FAMILY-FILES.md](docs/FAMILY-FILES.md) for the owner/member workflow, [BILLING-SETUP.md](docs/BILLING-SETUP.md) for merchant/store setup, and [NATIVE-VERIFICATION.md](docs/NATIVE-VERIFICATION.md) for preview builds and physical-device checks.
+
+Use `npm ci`, `npm test`, `npm run prepare-web`, and `npm run test:browser`. The new native CI jobs build isolated previews and do not publish. Billing is disabled until actual provider settings and approved products are configured. INR is the reporting currency; foreign accounts keep their native amounts in the Currency workspace.
+
+## Personal phone companion
+
+See [Phone quick entry and laptop sync](docs/PHONE-SYNC.md) for encrypted pairing, offline entry, OAuth setup and current browser/native limits. Google OAuth remains unconfigured.
+
+## Merge and publishing are separate
+
+Merging to main does not deploy Pages or publish Android/Windows releases. Publishing workflows are manual-only and require the publish switch on the main branch. PR checks remain build/test only. Keep publishing off until physical-device and provider setup checks are complete.

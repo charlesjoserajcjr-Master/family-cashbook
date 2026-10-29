@@ -2,5 +2,6 @@
 // Fill them in from Google Cloud Console (see README: "Turn on Google Drive sync").
 window.CASHBOOK_CONFIG = {
   googleWebClientId: '',   // "Web application" OAuth client ID, ends with .apps.googleusercontent.com
+  billing: { purchasesEnabled: false, mode: 'sandbox', serviceUrl: '', entitlementPublicKey: null, revenueCatAndroidKey: '', revenueCatIosKey: '' },
   googleIosClientId: ''    // "iOS" OAuth client ID (only needed for the iPhone app)
 };
