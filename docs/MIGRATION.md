@@ -1,5 +1,7 @@
 # Migration, backup and recovery
 
+Older plain Family Cashbook JSON backups require no passphrase. Use Restore a backup on the welcome screen, or More > Setup guide & user manual. The picker checks contents even when a device file provider labels the file as an unknown type. Review counts before replacement. Keep the original file unchanged.
+
 1. Export the original ledger before trying this branch. Keep that original backup separately. Test using a copy and synthetic records first.
 2. Existing JSON records are retained. Budget categories now retain the unspent portion of their plan; use Single bill for a single confirmed payment or mark a category complete when no further activity is expected. Review migrated forecasts before relying on them.
 3. Monthly bank entry no longer closes earlier months automatically. Open More → Monthly review, enter each real balance, then Review and close. Review the actual-only comparison for each account. Explain unrecorded differences even when they offset to zero overall. Close the earliest open period first.

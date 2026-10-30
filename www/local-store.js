@@ -283,11 +283,11 @@
   setInterval(() => { if (document.visibilityState === 'visible') Drive.background(); }, 5 * 60000);
 
   // ---------- backup files ----------
-  async function exportData(password) {
+  async function exportData(password,options={}) {
     await ready;if(lockedEnvelope)throw Error('Unlock before exporting.');password=password||ledgerPassword;
     let txt = JSON.stringify(snapshot(), null, 1);
     if(password)txt=await CashbookSecurity.seal(txt,password);
-    const name = 'family-cashbook-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+    const name = options.recovery ? 'family-cashbook-recovery-before-restore-'+new Date().toISOString().replace(/[:.]/g,'-')+'.json' : 'family-cashbook-backup-' + new Date().toISOString().slice(0, 10) + '.json';
     if (DESK) return (await DESK.saveFile(name, txt)) ? 'saved' : 'cancelled';
     const Share = Plug('Share');
     if (FS && Share) {
@@ -298,18 +298,32 @@
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([txt], { type: 'application/json' })); a.download = name; a.click();
     return 'downloaded';
   }
+  async function readBackup(text,password) {
+    if(typeof text!=='string'||text.length>30e6)throw Error('Backup is too large. Choose a Family Cashbook JSON backup under 30 MB.');
+    text=text.replace(/^\uFEFF/,'');let parsed;
+    try{parsed=JSON.parse(text);}catch{throw Error('This file is not readable backup JSON. Choose the original Family Cashbook backup, not an installer, ZIP, image or statement.');}
+    const encrypted=parsed?.app==='family-cashbook-encrypted';
+    if(encrypted){if(!password)throw Error('This backup is encrypted. Enter its original backup passphrase.');text=await CashbookSecurity.open(text,password);}
+    const candidate=CashbookSchema.parse(text,{legacy:true});
+    return {candidate,encrypted};
+  }
+  async function inspectBackup(text,password) {
+    const {candidate:o,encrypted}=await readBackup(text,password),counts={};
+    if(!o.docs['settings/main']||!Object.keys(o.docs).some(p=>p.startsWith('accounts/')||p.startsWith('fxAccounts/')))throw Error('This file does not contain a complete ledger. Choose a full Family Cashbook backup.');
+    for(const p of Object.keys(o.docs)){const collection=p.split('/')[0];counts[collection]=(counts[collection]||0)+1;}
+    return {encrypted,records:Object.keys(o.docs).length,counts,start:o.docs['settings/main'].start,end:o.docs['settings/main'].end,familyOwner:o.docs['family/main']?.mode==='owner'};
+  }
   async function importData(text,password) {
-    if(JSON.parse(text)?.app==='family-cashbook-encrypted')text=await CashbookSecurity.open(text,password||'');
-    const o = CashbookSchema.parse(text);
-    if (!o || o.app !== 'family-cashbook' || !isObj(o.docs)) throw new Error('This is not a Family Cashbook backup file.');
+    const {candidate:o,encrypted}=await readBackup(text,password);
     await ready;
     // An owner backup must never silently reactivate revoked grants or old proposal sequences.
     if(o.docs['family/main']?.mode==='owner'){const restored=o.docs['family/main'];o.docs['family/main']={...restored,members:{},sent:{},received:[],epoch:Math.max(restored.epoch||1,docs.get('family/main')?.epoch||1)+1,reinviteRequired:true};}
     // Preserve the current snapshot before replacing it.
     if(lockedEnvelope)throw Error('Unlock before restoring.');
-    const recovery=loadError?null:await exportData(ledgerPassword||undefined);
+    const recovery=loadError||!docs.size?null:await exportData(ledgerPassword||undefined,{recovery:true});
     if(recovery==='cancelled')throw Error('Restore cancelled; the current ledger was kept.');
     if(loadError&&!sourcePreserved)throw Error('Export the unreadable source before restoring.');
+    if(encrypted&&!ledgerPassword)ledgerPassword=password;
     loadError=null;
     const priorDocs=new Map(docs),priorMeta=fieldMeta,priorRevision=revision();fieldMeta=o.fieldMeta||{};conflicts=o.conflicts||{};
     // A restore replaces this device's ledger; it is then marked as the newest version everywhere.
@@ -377,6 +391,6 @@
     if(!DESK&&navigator.canShare&&navigator.share){const file=new File([text],name,{type:mime});if(navigator.canShare({files:[file]})){await navigator.share({files:[file],title:'Family Cashbook encrypted file'});return 'shared';}}
     return exportFile(name,text,mime);
   }
-  window.__cashbookLocal = {shareFile,getSnapshot:async()=>{await ready;if(lockedEnvelope)throw Error('Unlock first.');return clone(snapshot());}, exportSource,get readError(){return loadError;},unlock,encryptLedger,lock,get locked(){return !!lockedEnvelope;},get encrypted(){return !!(lockedEnvelope||ledgerPassword);},flush:async()=>{await saveQueue;if(saveError)throw saveError;}, retrySave:()=>persist(), get saveError(){return saveError||loadError;}, get conflicts(){return conflicts;}, clearConflict:async id=>{delete conflicts[id];await persist();}, exportData, importData, exportFile, drive: Drive, pwa, desktop };
+  window.__cashbookLocal = {inspectBackup,shareFile,getSnapshot:async()=>{await ready;if(lockedEnvelope)throw Error('Unlock first.');return clone(snapshot());}, exportSource,get readError(){return loadError;},unlock,encryptLedger,lock,get locked(){return !!lockedEnvelope;},get encrypted(){return !!(lockedEnvelope||ledgerPassword);},flush:async()=>{await saveQueue;if(saveError)throw saveError;}, retrySave:()=>persist(), get saveError(){return saveError||loadError;}, get conflicts(){return conflicts;}, clearConflict:async id=>{delete conflicts[id];await persist();}, exportData, importData, exportFile, drive: Drive, pwa, desktop };
   window.claude = { use: async name => name === 'db' ? db : name === 'user' ? user : null };
 })();

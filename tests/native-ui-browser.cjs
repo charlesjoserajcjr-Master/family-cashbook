@@ -52,6 +52,9 @@ const server = http.createServer((req, res) => {
     await page.locator("#ob-name").fill("Native synthetic account");
     await page.locator("#ob-balance").fill("5000");
     await page
+      .getByRole("button", { name: "Next: income & spending", exact: true })
+      .click();
+    await page
       .getByRole("button", { name: "Create my plan", exact: true })
       .click();
     await page.getByRole("tab", { name: "More", exact: true }).click();
