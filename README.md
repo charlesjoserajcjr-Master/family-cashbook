@@ -129,3 +129,7 @@ See [Phone quick entry and laptop sync](docs/PHONE-SYNC.md) for encrypted pairin
 ## Merge and publishing are separate
 
 Merging to main does not deploy Pages or publish Android/Windows releases. Publishing workflows are manual-only and require the publish switch on the main branch. PR checks remain build/test only. Keep publishing off until physical-device and provider setup checks are complete.
+
+## Guided setup and user manual
+
+The welcome screen can restore a plain or encrypted backup. Plain older Family Cashbook backups need no passphrase. More > Setup guide & user manual walks through the essential setup steps; www/user-guide.html is the offline printable manual. See docs/GUIDED-SETUP-RESTORE.md.

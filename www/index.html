@@ -30,6 +30,7 @@ img{max-width:100%}
 <script src="entitlements.js"></script>
 <script src="billing-ui.js"></script>
 <script src="companion-ui.js"></script>
+<script src="guide.js"></script>
 <script src="planner-ui.js"></script>
 <link rel="stylesheet" href="vendor/fonts/bricolage-grotesque/500.css">
 <link rel="stylesheet" href="vendor/fonts/bricolage-grotesque/700.css">
@@ -254,7 +255,8 @@ label.f{display:grid;gap:4px;font-size:12.5px;color:var(--ink2)}
 @media (prefers-reduced-motion:no-preference){.sheet{animation:up .18s ease-out}@keyframes up{from{transform:translateY(12px);opacity:.6}}}
 </style>
 
-<style>.tool-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}.tool-grid .btn{min-height:56px;text-align:left}.form{margin-block:12px}.panel .row{margin-block:12px}#save-status{position:relative;z-index:21}</style>
+<style>.tool-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}.tool-grid .btn{min-height:56px;text-align:left}.form{margin-block:12px}.panel .row{margin-block:12px}#save-status{position:relative;z-index:21}.guide-banner{width:100%}.guide-banner .btn{margin-right:8px;margin-top:6px}.guide-manual{line-height:1.65}.guide-manual h2{margin-top:24px}.guide-manual p{max-width:75ch}
+</style>
 </head>
 <body>
 <header class="top">
@@ -414,7 +416,7 @@ function render() {
   if (!st && S.ready.has('settings')) {
     const D = window.__cashbookLocal?.drive, drive = D && D.configured();
     v.innerHTML = `<div class="panel empty" style="margin-top:24px"><b>${drive ? 'Welcome to ReadyTrove Family Money' : 'Start your family ledger'}</b>${drive ? 'Already using ReadyTrove Family Money on another device? Load your ledger from Google Drive. New here? Start a fresh ledger, then connect Drive in Accounts &amp; setup.' : 'Add your bank accounts, then plan monthly income, EMIs and expenses. You can record actual activity and compare it with your plan.'}
-      <div class="row" style="margin-top:14px;justify-content:center">${drive ? `<button class="btn primary" data-act="drive-connect">${D.status === 'syncing' ? 'Loading…' : 'Load my ledger from Google Drive'}</button>` : ''}<button class="btn" data-act="companion">Phone & laptop sync</button>${canWrite ? `<button class="btn ${drive ? '' : 'primary'}" data-act="startledger">Start a new ledger</button>` : '<span class="dim">Ask the family head to set it up.</span>'}</div>
+      <div class="row" style="margin-top:14px;justify-content:center">${drive ? `<button class="btn primary" data-act="drive-connect">${D.status === 'syncing' ? 'Loading…' : 'Load my ledger from Google Drive'}</button>` : ''}<button class="btn" data-guide="restore">Restore a backup</button><button class="btn" data-guide="manual">User manual</button><button class="btn" data-act="companion">Phone & laptop sync</button>${canWrite ? `<button class="btn ${drive ? '' : 'primary'}" data-act="startledger">Start a new ledger</button>` : '<span class="dim">Ask the family head to set it up.</span>'}</div>
       ${drive && D.error ? `<p class="hint" style="margin:10px auto 0;color:var(--bad)">${esc(D.error)}</p>` : ''}</div>`;
     return;
   }
@@ -1178,13 +1180,13 @@ function setup() {
     <div class="row">${P.canInstall ? '<button class="btn primary" data-act="pwa-install">Install ReadyTrove Family Money</button>' : P.installed ? '' : '<span class="hint" style="margin:0">To install: in Chrome, open the ⋮ menu → <b>Cast, save and share → Install page as app</b>. In Edge: ⋯ menu → <b>Apps → Install this site as an app</b>.</span>'}${P.persisted === false ? '<button class="btn" data-act="pwa-protect">Protect storage</button>' : ''}</div></div></div>`; })() : ''}
   ${window.__cashbookLocal ? `<div class="section"><h2>Backup</h2>
   <div class="panel pad"><p class="hint" style="margin:0 0 10px">${window.__cashbookLocal?.drive?.connected ? 'Google Drive keeps your ledger safe. A backup file is an extra copy you can keep anywhere.' : (window.__cashbookLocal?.desktop ? 'The app already keeps daily copies in the Backups folder. A backup file is an extra copy you can keep anywhere, such as a USB stick or email.' : 'Without Drive sync your ledger is stored only on this device. Save a backup regularly so you can restore it on a new device.')}</p>
-  <div class="row"><button class="btn primary" data-act="backup">Save a backup</button><label class="btn" for="restore-file">Restore from a backup</label><input type="file" id="restore-file" accept=".json,application/json" hidden></div></div></div>`
+  <div class="row"><button class="btn primary" data-act="backup">Save a backup</button><label class="btn" for="restore-file">Restore from a backup</label><input type="file" id="restore-file" hidden></div></div></div>`
   : `<div class="section"><h2>Sharing with the family</h2>
   <div class="panel pad hint" style="max-width:none">Share this page from its menu. Give family members <b>Editor</b> access so they can log salaries, bills and EMIs as they happen; people with view access can see everything but not change it. Every entry records who added it.</div></div>`}`;
 }
 
 // ---------- modals ----------
-function closeModal() { $('#modal').innerHTML = ''; }
+function closeModal() { window.CashbookGuide?.cancelRestore();$('#modal').innerHTML = ''; }
 function openModal(html) { $('#modal').innerHTML = `<div class="scrim" data-act="scrim"><div class="sheet" role="dialog" aria-modal="true">${html}</div></div>`; const f = $('#modal input, #modal select'); f && f.focus(); }
 
 let entryType = 'expense';
@@ -1207,7 +1209,7 @@ function entryModal(catId, o = {}) {
       <label class="f full">Account<select id="e-acc">${C.accs.map(a => `<option value="${a.id}" ${a.id === (ed ? ed.accountId : sel ? sel.account : C.accs[0]?.id) ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>
       <label class="f full">Description / note<input id="e-note" value="${esc(ed?.note || '')}" placeholder="${isMisc ? 'What was it? e.g. Plumber, gift, bank charges' : 'Optional, e.g. paid via UPI'}"></label>
     </div>
-    <p class="hint" style="margin:0">A confirmed amount replaces the plan for that category in that month.</p>
+    <p class="hint" style="margin:0">Budget categories retain their expected remaining amount. Single bills use the recorded actual instead of another full planned bill.</p>
     <div class="row" style="justify-content:flex-end"><button class="btn ghost" data-act="close">Cancel</button><button class="btn primary" data-act="saveentry" data-id="${ed ? esc(o.entryId) : ''}">${ed ? 'Save changes' : 'Save'}</button></div>`);
 }
 
@@ -1493,7 +1495,7 @@ document.addEventListener('change', async ev => {
   const el = ev.target;
   if (el.id === 'restore-file') {
     const f = el.files && el.files[0]; if (!f) return;
-    try { await window.__cashbookLocal.importData(await f.text()); toast('Backup restored'); } catch (e) { toast(e?.message || 'Could not read that file.'); }
+    CashbookGuide.openRestore(f);
     el.value = ''; return;
   }
   if (el.id === 'c-owner' || el.id === 'c-type') { $('#c-group-wrap').hidden = !!$('#c-owner').value || $('#c-type').value === 'income'; return; }
