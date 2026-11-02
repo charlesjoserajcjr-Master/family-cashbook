@@ -49,6 +49,24 @@ const { _electron } = require("playwright"),
       () => window.__cashbookLocal.encrypted && !window.CashbookUI.busy,
     );
     await page.evaluate(() => window.__cashbookLocal.flush());
+    const listener = await page.evaluate(() =>
+      window.cashbookDesktop.wifiStart(),
+    );
+    assert.equal(listener.port, 49152);
+    const denied = await fetch(
+      "http://127.0.0.1:" + listener.port + "/v1/challenge",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      },
+    );
+    assert.equal(
+      denied.status,
+      403,
+      "unpaired network request cannot obtain data",
+    );
+    await page.evaluate(() => window.cashbookDesktop.wifiStop());
     await app.close();
     const raw = fs.readFileSync(
       path.join(testDir, "ledger/family-cashbook-data.json"),

@@ -156,6 +156,7 @@ const seed = {
       .getByRole("button", { name: "Phone & laptop sync", exact: true })
       .click();
     async function encrypt(page) {
+      await page.locator("#google-device-sync > summary").click();
       await page.locator("#device-pass").fill(pass);
       await page.locator("#device-confirm").fill(pass);
       await page

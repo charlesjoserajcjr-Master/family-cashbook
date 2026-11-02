@@ -33,6 +33,8 @@ jobs:
       - name: Copy the app into the iPhone project
         run: npx cap sync ios
 
+      - run: node scripts/patch-local-wifi.mjs
+
       - name: Compile for the iPhone simulator (no signing)
         shell: bash
         run: |

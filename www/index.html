@@ -29,6 +29,10 @@ img{max-width:100%}
 <script src="currency-ui.js"></script>
 <script src="entitlements.js"></script>
 <script src="billing-ui.js"></script>
+<script src="wifi-crypto.js"></script>
+<script src="wifi-sync.js"></script>
+<script src="vendor/qr.js"></script>
+<script src="wifi-ui.js"></script>
 <script src="companion-ui.js"></script>
 <script src="guide.js"></script>
 <script src="planner-ui.js"></script>
@@ -396,6 +400,8 @@ function syncLabel(D) {
 function updateSync() {
   const D = window.__cashbookLocal?.drive, el = $('#sync'); if (!el) return;
   if (!D) { el.hidden = true; return; }
+  const wifi=window.CashbookWifiUI?.status;
+  if(!D.connected&&wifi?.paired){el.hidden=false;el.dataset.s=wifi.busy?'syncing':'local';el.textContent=wifi.busy?'Local Wi-Fi · syncing':wifi.lastSync?'Local Wi-Fi · paired':'Local Wi-Fi · first sync pending';el.title=wifi.lastSync?'Last local sync: '+new Date(wifi.lastSync).toLocaleString():'Open Phone & laptop sync';return;}
   el.hidden = false; el.dataset.s = D.status; el.textContent = !D.configured() ? 'Saved here · sync setup' : D.pending && D.connected && D.status !== 'syncing' ? 'Saved here · sync pending' : syncLabel(D);
   el.title = D.error || (D.connected ? 'Saved in your Google Drive' : 'Connect Google Drive in Accounts & setup');
 }
@@ -1186,7 +1192,7 @@ function setup() {
 }
 
 // ---------- modals ----------
-function closeModal() { window.CashbookGuide?.cancelRestore();$('#modal').innerHTML = ''; }
+function closeModal() { window.dispatchEvent(new Event('cashbook-modal-closed'));window.CashbookGuide?.cancelRestore();$('#modal').innerHTML = ''; }
 function openModal(html) { $('#modal').innerHTML = `<div class="scrim" data-act="scrim"><div class="sheet" role="dialog" aria-modal="true">${html}</div></div>`; const f = $('#modal input, #modal select'); f && f.focus(); }
 
 let entryType = 'expense';
@@ -1547,6 +1553,7 @@ window.addEventListener('resize', () => { if (!C) return; if (tab === 'overview'
 
 CashbookUI.attach({state:()=>S,computed:()=>C,actualComputed:()=>compute(true),refresh:schedule,quickEntry:()=>{txModal('expense');const amount=$('#e-amt');if(amount){amount.value='';amount.focus();}},db:()=>db,month:()=>selMonth,uid:()=>uid||'',canWrite:()=>canWrite,locked,modal:openModal,close:closeModal,toast,go:t=>{tab=t;render();window.scrollTo(0,0);}});
 window.addEventListener('cashbook-unlock',schedule);
+window.addEventListener('cashbook-wifi',updateSync);
 // ---------- boot ----------
 (async () => {
   try { db = await window.claude?.use?.('db'); } catch (e) { db = null; }
