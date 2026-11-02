@@ -61,3 +61,5 @@ public class MainActivity extends BridgeActivity implements ModifiedMainActivity
 }
 `);
 console.log("MainActivity.java: Google sign-in hook added");
+
+await import('./patch-local-wifi.mjs');

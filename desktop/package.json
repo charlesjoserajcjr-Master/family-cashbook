@@ -17,10 +17,21 @@
   "build": {
     "appId": "com.familycashbook.desktop",
     "productName": "Family Cashbook",
-    "directories": { "output": "dist", "buildResources": "build" },
-    "files": ["main.js", "preload.js", "www/**/*"],
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "www/**/*",
+      "wifi-relay.cjs"
+    ],
     "win": {
-      "target": ["nsis", "portable"],
+      "target": [
+        "nsis",
+        "portable"
+      ],
       "icon": "build/icon.png"
     },
     "nsis": {
@@ -32,6 +43,8 @@
       "shortcutName": "Family Cashbook",
       "artifactName": "Family-Cashbook-Setup-${version}.${ext}"
     },
-    "portable": { "artifactName": "Family-Cashbook-Portable-${version}.${ext}" }
+    "portable": {
+      "artifactName": "Family-Cashbook-Portable-${version}.${ext}"
+    }
   }
 }

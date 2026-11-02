@@ -3,4 +3,8 @@ import { Filesystem } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import { App } from '@capacitor/app';
 import { SocialLogin } from '@capgo/capacitor-social-login';
+import { registerPlugin } from '@capacitor/core';
+import { CapacitorBarcodeScanner, CapacitorBarcodeScannerTypeHint } from '@capacitor/barcode-scanner';
+window.CashbookScanner={scan:async()=> (await CapacitorBarcodeScanner.scanBarcode({hint:CapacitorBarcodeScannerTypeHint.QR_CODE,scanInstructions:'Scan the QR code shown in Family Money on your laptop',android:{scanningLibrary:'zxing'}})).ScanResult};
+window.CashbookLocalTransport=registerPlugin('LocalWifi');
 window.CashbookNative = { Purchases, Filesystem, Share, App, SocialLogin };

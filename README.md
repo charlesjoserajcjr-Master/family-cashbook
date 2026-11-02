@@ -133,3 +133,7 @@ Merging to main does not deploy Pages or publish Android/Windows releases. Publi
 ## Guided setup and user manual
 
 The welcome screen can restore a plain or encrypted backup. Plain older Family Cashbook backups need no passphrase. More > Setup guide & user manual walks through the essential setup steps; www/user-guide.html is the offline printable manual. See docs/GUIDED-SETUP-RESTORE.md.
+
+### Direct phone and laptop sync (preview)
+
+Updated native builds include QR pairing and encrypted personal-ledger sync over private Wi-Fi, without Google OAuth. Pair the Windows app with an empty Android/iPhone app copy, confirm the matching code on both devices, then tap Sync now on the phone. Both apps must be open and unlocked; enable the laptop listener again after restart. Browser previews and scoped family ledgers use their existing alternatives. See [the setup, security design and physical-device checklist](docs/LOCAL-WIFI-SYNC.md). Native builds and physical-device verification are required before treating this as release-ready.

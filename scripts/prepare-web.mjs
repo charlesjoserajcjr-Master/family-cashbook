@@ -31,3 +31,5 @@ console.log("prepare-web done; bundled font stylesheets:", (links.match(/<link/g
 const { build } = await import("esbuild");
 await build({entryPoints:[path.join(root,"scripts/native-plugins.js")],bundle:true,format:"iife",platform:"browser",target:"es2020",minify:true,outfile:out("native-plugins.js")});
 console.log("Native plugin bridge bundled.");
+
+await build({entryPoints:[path.join(root,'scripts/qr-entry.js')],bundle:true,format:'iife',platform:'browser',target:'es2020',minify:true,outfile:out('qr.js')});

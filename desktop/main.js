@@ -5,6 +5,14 @@
 const { app, BrowserWindow, ipcMain, dialog, shell, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const {createRelay}=require('./wifi-relay.cjs');
+const wifi=createRelay(value=>{if(win&&!win.isDestroyed())win.webContents.send('wifi:request',value);});
+const trusted=e=>{if(!win||e.sender!==win.webContents||e.senderFrame!==win.webContents.mainFrame)throw Error('Untrusted device request');};
+ipcMain.handle('wifi:start',e=>{trusted(e);return wifi.start();});
+ipcMain.handle('wifi:stop',e=>{trusted(e);return wifi.stop();});
+ipcMain.handle('wifi:reply',(e,{id,value})=>{trusted(e);return wifi.respond(id,value);});
+ipcMain.handle('devices:read',e=>{trusted(e);try{return fs.readFileSync(path.join(dataDir(),'family-cashbook-local-devices.json'),'utf8');}catch(err){if(err.code==='ENOENT')return null;throw err;}});
+ipcMain.handle('devices:write',(e,text)=>{trusted(e);const file=path.join(dataDir(),'family-cashbook-local-devices.json');if(text===null){fs.rmSync(file,{force:true});return;}if(typeof text!=='string'||text.length>200000||JSON.parse(text).app!=='family-cashbook-encrypted')throw Error('Invalid device store');safeWrite(file,text);});
 
 if (!app.requestSingleInstanceLock()) { app.quit(); }
 
@@ -66,6 +74,7 @@ function createWindow() {
   let closeApproved=false,closing=false,closeTimer;
   win.on('close',e=>{if(closeApproved)return;e.preventDefault();if(closing)return;closing=true;win.webContents.send('data:before-close');closeTimer=setTimeout(()=>{closing=false;dialog.showErrorBox('Close postponed','The ledger has not acknowledged a completed save. Keep the app open and export or retry your changes.');},30000);});
   ipcMain.on('data:close-ready',(e,ok)=>{if(e.sender!==win.webContents||!closing)return;clearTimeout(closeTimer);closing=false;if(ok){closeApproved=true;win.close();}});
+  win.webContents.on('did-start-loading',()=>{wifi.stop().catch(()=>{});});
   win.loadFile(path.join(__dirname, 'www', 'index.html'));
   // Links to websites open in the normal browser, never inside the app.
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/i.test(url)) shell.openExternal(url); return { action: 'deny' }; });
@@ -81,4 +90,4 @@ Menu.setApplicationMenu(Menu.buildFromTemplate([
 
 app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
 app.whenReady().then(createWindow);
-app.on('window-all-closed', () => app.quit());
+app.on('window-all-closed', () => {wifi.stop().finally(()=>app.quit());});

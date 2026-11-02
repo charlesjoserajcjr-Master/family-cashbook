@@ -2,7 +2,8 @@
 (() => {
   "use strict";
   let A,
-    busy = false;
+    busy = false,
+    googleExpanded = false;
   const esc = (value) =>
     String(value ?? "").replace(
       /[&<>"']/g,
@@ -33,16 +34,27 @@
             : D.status === "synced"
               ? "Synced with your Google Drive"
               : "Ready to sync";
-    return `<section class="section"><h2>Phone & laptop sync</h2><div class="panel pad"><p><b>${esc(state)}</b></p>
+    return `<section class="section"><h2>Phone & laptop sync</h2>${window.CashbookWifiUI?.render() || ""}<details id="google-device-sync" ${googleExpanded || D.connected || D.email ? "open" : ""}><summary>Optional: Google Drive sync</summary><div class="panel pad"><p><b>${esc(state)}</b></p>
       <p>Enter transactions on your phone, even offline. When you open the app online, sync with the same Google account on your laptop. Each device keeps its own saved copy.</p>
       ${A?.state().settings ? button("entry", "Quick transaction") : "<p>Connect to your existing desktop ledger before entering transactions on a new phone.</p>"}
       <p class="hint">${D.connected ? `Connected as ${esc(D.email)}. ` : ""}${D.lastSync ? `Last successful sync: ${esc(new Date(D.lastSync).toLocaleString())}. ` : ""}Saving here and uploading to Drive are separate steps. Keep the app open until sync completes.</p>
-      ${family ? "<p>Family ledgers use signed attachment exchange. Personal device sync is unavailable for this ledger.</p>" : !D.supported ? "<p>Open the browser version on your laptop. The Windows EXE does not yet support this Google sign-in flow.</p>" : !D.configured() ? "<p>Google OAuth client IDs have not been configured. Quick entry works locally; cross-device sync is not active yet.</p>" : !L.encrypted ? `<h3>Protect this device copy</h3><p>On your first device, choose a passphrase of at least 12 characters. On your second device, use the exact same passphrase. Keep it separately; it cannot be recovered.</p><div class="form"><label class="f">Shared ledger passphrase<input id="device-pass" type="password" autocomplete="new-password"></label><label class="f">Confirm passphrase<input id="device-confirm" type="password" autocomplete="new-password"></label></div>${button("encrypt", "Enable encrypted device sync")}` : `<p>The working ledger and new Drive uploads are encrypted. Unlock each device with the same passphrase after reopening. Older plaintext copies remain unchanged.</p>${button("connect", D.connected ? "Sync now" : "Connect my Google account")}${D.connected || D.email ? button("disconnect", "Disconnect this device") : ""}`}
+      ${family ? "<p>Family ledgers use signed attachment exchange. Personal device sync is unavailable for this ledger.</p>" : !D.supported ? "<p>Open the browser version on your laptop. The Windows EXE does not yet support this Google sign-in flow.</p>" : !D.configured() ? "<p>Google OAuth client IDs have not been configured. Quick entry works locally; Google Drive sync is not active yet. Use local Wi-Fi pairing above instead.</p>" : !L.encrypted ? `<h3>Protect this device copy</h3><p>On your first device, choose a passphrase of at least 12 characters. On your second device, use the exact same passphrase. Keep it separately; it cannot be recovered.</p><div class="form"><label class="f">Shared ledger passphrase<input id="device-pass" type="password" autocomplete="new-password"></label><label class="f">Confirm passphrase<input id="device-confirm" type="password" autocomplete="new-password"></label></div>${button("encrypt", "Enable encrypted device sync")}` : `<p>The working ledger and new Drive uploads are encrypted. Unlock each device with the same passphrase after reopening. Older plaintext copies remain unchanged.</p>${button("connect", D.connected ? "Sync now" : "Connect my Google account")}${D.connected || D.email ? button("disconnect", "Disconnect this device") : ""}`}
       ${D.error ? `<p role="status" style="color:var(--bad)">${esc(D.error)}</p>` : ""}
-      <p class="hint">For first setup: connect the laptop first, finish its sync, then connect your phone. Use the same Google account and OAuth project. Do not create a separate ledger on the phone. Conflicting edits are recorded in Sync history.</p></div></section>`;
+      <p class="hint">For first setup: connect the laptop first, finish its sync, then connect your phone. Use the same Google account and OAuth project. Do not create a separate ledger on the phone. Conflicting edits are recorded in Sync history.</p></div></details></section>`;
   }
+  document.addEventListener(
+    "toggle",
+    (event) => {
+      if (event.target.id === "google-device-sync" && event.target.isConnected)
+        googleExpanded = event.target.open;
+    },
+    true,
+  );
   function open() {
+    const googleOpen = document.getElementById("google-device-sync")?.open;
     A.modal(render());
+    if (googleOpen) document.getElementById("google-device-sync").open = true;
+    window.CashbookWifiUI?.refresh();
   }
   document.addEventListener("click", async (event) => {
     const target = event.target.closest("[data-companion]");
@@ -113,11 +125,12 @@
   window.CashbookCompanion = {
     attach: (api) => {
       A = api;
+      window.CashbookWifiUI?.attach(api);
     },
     render,
     open,
     get busy() {
-      return busy;
+      return busy || !!window.CashbookWifiUI?.busy;
     },
   };
 })();
