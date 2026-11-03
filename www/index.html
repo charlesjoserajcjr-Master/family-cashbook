@@ -25,6 +25,7 @@ img{max-width:100%}
 <script src="family-files.js"></script>
 <script src="currency.js"></script>
 <script src="local-store.js"></script>
+<script src="lock.js"></script>
 <script src="family-ui.js"></script>
 <script src="currency-ui.js"></script>
 <script src="entitlements.js"></script>
@@ -408,6 +409,7 @@ function updateSync() {
 function render() {
   if(window.__cashbookLocal?.readError){CashbookUI.recoveryScreen();return;}
   if(window.__cashbookLocal?.locked){CashbookUI.lockScreen();return;}
+  window.CashbookLock?.gate();
   if(window.CashbookUI?.busy){pending=true;return;}
   const focused=document.activeElement;if(focused&&$('#view').contains(focused)&&focused.matches('input,select,textarea')){pending=true;return;}
   updateSync();
@@ -421,7 +423,7 @@ function render() {
   if (!db) { v.innerHTML = `<div class="panel empty" style="margin-top:24px"><b>The shared ledger isn't reachable here</b>Open ReadyTrove Family Money from Claude while signed in to see and update the family's accounts.</div>`; return; }
   if (!st && S.ready.has('settings')) {
     const D = window.__cashbookLocal?.drive, drive = D && D.configured();
-    v.innerHTML = `<div class="panel empty" style="margin-top:24px"><b>${drive ? 'Welcome to ReadyTrove Family Money' : 'Start your family ledger'}</b>${drive ? 'Already using ReadyTrove Family Money on another device? Load your ledger from Google Drive. New here? Start a fresh ledger, then connect Drive in Accounts &amp; setup.' : 'Add your bank accounts, then plan monthly income, EMIs and expenses. You can record actual activity and compare it with your plan.'}
+    v.innerHTML = `<div class="panel empty" style="margin-top:24px"><b>${drive ? 'Welcome to ReadyTrove Family Money' : 'Start your family ledger'}</b>${drive ? 'Already using ReadyTrove Family Money on another device? Load your ledger from Google Drive. New here? Start a fresh ledger, then connect Drive in Accounts &amp; setup.' : 'Add your bank accounts, then plan monthly income, EMIs and expenses. Your records stay on your own devices, protected by your PIN.'}
       <div class="row" style="margin-top:14px;justify-content:center">${drive ? `<button class="btn primary" data-act="drive-connect">${D.status === 'syncing' ? 'Loading…' : 'Load my ledger from Google Drive'}</button>` : ''}<button class="btn" data-guide="restore">Restore a backup</button><button class="btn" data-guide="manual">User manual</button><button class="btn" data-act="companion">Phone & laptop sync</button>${canWrite ? `<button class="btn ${drive ? '' : 'primary'}" data-act="startledger">Start a new ledger</button>` : '<span class="dim">Ask the family head to set it up.</span>'}</div>
       ${drive && D.error ? `<p class="hint" style="margin:10px auto 0;color:var(--bad)">${esc(D.error)}</p>` : ''}</div>`;
     return;

@@ -78,7 +78,7 @@ const server = http.createServer((req, res) => {
         serviceWorkers: "block",
       });
       contexts.push(context);
-      const page = await context.newPage();
+      const page = await (await context.addInitScript(()=>{window.CASHBOOK_TEST_SKIP_PIN=true;}),context).newPage();
       page.on("pageerror", (e) => errors.push(e.message));
       page.on("dialog", (d) => d.accept());
       const disk = isPhone ? phoneDisk : hostDisk;

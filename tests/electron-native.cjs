@@ -22,6 +22,11 @@ const { _electron } = require("playwright"),
     await page
       .getByRole("button", { name: "Start a new ledger", exact: true })
       .click();
+    await page.locator("#pin-new").fill("907264");
+    await page.locator("#pin-confirm").fill("907264");
+    await page.locator("#pin-next").click();
+    await page.locator("#pin-got").check();
+    await page.locator("#pin-finish").click();
     await page.locator("#ob-name").fill("Desktop synthetic account");
     await page.locator("#ob-balance").fill("5000");
     await page
@@ -29,21 +34,6 @@ const { _electron } = require("playwright"),
       .click();
     await page
       .getByRole("button", { name: "Create my plan", exact: true })
-      .click();
-    await page.getByRole("tab", { name: "More", exact: true }).click();
-    await page
-      .getByRole("button", { name: "Privacy & encrypted backups", exact: true })
-      .click();
-    await page.locator("#sec-ledger").fill("desktop test passphrase 123");
-    await page
-      .locator("#sec-ledger-confirm")
-      .fill("desktop test passphrase 123");
-    page.once("dialog", (d) => d.accept());
-    await page
-      .getByRole("button", {
-        name: "Enable working-ledger encryption",
-        exact: true,
-      })
       .click();
     await page.waitForFunction(
       () => window.__cashbookLocal.encrypted && !window.CashbookUI.busy,
@@ -85,12 +75,12 @@ const { _electron } = require("playwright"),
     });
     const reopened = await app.firstWindow();
     activePage = reopened;
-    await reopened.locator("#unlock-pass").fill("desktop test passphrase 123");
-    await reopened.getByRole("button", { name: "Unlock", exact: true }).click();
+    await reopened.locator("#pin-entry").fill("907264");
+    await reopened.locator("#pin-open").click();
     await reopened.waitForFunction(
       () => !window.__cashbookLocal.locked && !window.CashbookUI.busy,
     );
-    await reopened.locator("#unlock-pass").waitFor({ state: "hidden" });
+    await reopened.locator("#pin-entry").waitFor({ state: "hidden" });
     const restored = await reopened.evaluate(() =>
       window.__cashbookLocal.getSnapshot(),
     );

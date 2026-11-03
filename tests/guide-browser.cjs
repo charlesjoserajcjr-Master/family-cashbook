@@ -71,7 +71,7 @@ const server = http.createServer((req, res) => {
           hasTouch: name === "mobile",
           serviceWorkers: "block",
         }),
-        page = await context.newPage(),
+        page = await (await context.addInitScript(()=>{window.CASHBOOK_TEST_SKIP_PIN=true;}),context).newPage(),
         errors = [];
       page.on("pageerror", (e) => errors.push(e.message));
       page.on("dialog", (d) => d.accept());
@@ -206,7 +206,7 @@ const server = http.createServer((req, res) => {
           viewport,
           serviceWorkers: "block",
         }),
-        newPage = await fresh.newPage();
+        newPage = await (await fresh.addInitScript(()=>{window.CASHBOOK_TEST_SKIP_PIN=true;}),fresh).newPage();
       await newPage.route("**/*", (r) =>
         new URL(r.request().url()).hostname === "127.0.0.1"
           ? r.continue()

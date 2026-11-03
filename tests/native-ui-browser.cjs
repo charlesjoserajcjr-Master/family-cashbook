@@ -38,7 +38,7 @@ const server = http.createServer((req, res) => {
         closeReady() {},
       };
     });
-    const page = await context.newPage();
+    const page = await (await context.addInitScript(()=>{window.CASHBOOK_TEST_SKIP_PIN=true;}),context).newPage();
     page.on("pageerror", (e) => console.log("PAGE ERROR", e.message));
     await page.route("**/*", (r) =>
       new URL(r.request().url()).hostname === "127.0.0.1"
@@ -59,7 +59,7 @@ const server = http.createServer((req, res) => {
       .click();
     await page.getByRole("tab", { name: "More", exact: true }).click();
     await page
-      .getByRole("button", { name: "Privacy & encrypted backups", exact: true })
+      .getByRole("button", { name: "PIN, recovery code and lock", exact: true })
       .click();
     await page.locator("#sec-ledger").fill("native test passphrase 123");
     await page

@@ -4,7 +4,7 @@
 
 1. Install matching updated Windows and Android/iPhone builds. Keep the original backup. Browser previews cannot host or use the native local socket bridge.
 2. Restore/set up the ledger on the laptop. The first phone copy must be empty; an unrelated existing phone ledger is refused instead of silently merged.
-3. Open **Phone & laptop sync** on both devices. Protect each device with a passphrase of at least 12 characters. The two passphrases may differ. Pairing keys and saved financial records are encrypted on each device.
+3. Open **Phone & laptop sync** on both devices. Protect each device with its own PIN. Pairing keys and saved financial records are encrypted on each device.
 4. Laptop: **Connect phone · show QR**. Phone: **Scan laptop QR**. Allow camera permission. On iPhone, also allow Local Network access.
 5. Compare the six-digit code on the devices. Approve on the laptop, then finish pairing on the phone. No financial records transfer during pairing.
 6. Phone: **Sync now**. The first sync copies the laptop ledger to the phone. Enter transactions offline on either device; open both apps on the same private Wi-Fi and tap **Sync now** on the phone to merge them.

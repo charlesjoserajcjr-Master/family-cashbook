@@ -2,7 +2,7 @@
 // The ledger is saved as a normal file: Documents\Family Cashbook\family-cashbook-data.json
 // (the folder can be changed, e.g. to a Google Drive or OneDrive folder, or a USB stick).
 // A dated copy is kept in the Backups sub-folder each day (the last 60 days).
-const { app, BrowserWindow, ipcMain, dialog, shell, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, Menu, safeStorage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const {createRelay}=require('./wifi-relay.cjs');
@@ -44,6 +44,9 @@ function saveData(text) { safeWrite(dataFile(), text); dailyBackup(text); }
 ipcMain.handle('data:read', () => { try { return fs.readFileSync(dataFile(), 'utf8'); } catch(e){if(e.code==='ENOENT')return null;throw e;} });
 ipcMain.handle('data:write', (e, text) => { saveData(text); return true; });
 ipcMain.on('data:writeSync', (e, text) => { try { saveData(text); e.returnValue = true; } catch (err) { e.returnValue = false; } });
+// Windows keeps this key tied to the signed-in user, so a copied data folder has nothing to guess a PIN against.
+ipcMain.handle('key:wrap', (e, data) => { if (!safeStorage.isEncryptionAvailable()) throw Error('unavailable'); return safeStorage.encryptString(data).toString('base64'); });
+ipcMain.handle('key:unwrap', (e, data) => safeStorage.decryptString(Buffer.from(data, 'base64')));
 ipcMain.handle('data:info', () => ({ dir: dataDir(), file: dataFile(), backups: path.join(dataDir(), 'Backups') }));
 ipcMain.handle('data:open', () => shell.openPath(dataDir()));
 ipcMain.handle('data:choose', async () => {

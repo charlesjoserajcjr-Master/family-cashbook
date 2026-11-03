@@ -9,11 +9,11 @@ async function key(password,salt,usage){
  const material=await crypto.subtle.importKey('raw',enc.encode(password),'PBKDF2',false,['deriveKey']);
  return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations,hash:'SHA-256'},material,{name:'AES-GCM',length:256},false,usage);
 }
-async function seal(text,password){
+async function seal(text,password,keyId){
  if(password.length<12)throw Error('Use a passphrase of at least 12 characters.');
  const salt=crypto.getRandomValues(new Uint8Array(16)),iv=crypto.getRandomValues(new Uint8Array(12));
  const data=await crypto.subtle.encrypt({name:'AES-GCM',iv},await key(password,salt,['encrypt']),enc.encode(text));
- return JSON.stringify({app:'family-cashbook-encrypted',version:1,kdf:'PBKDF2-SHA256',iterations,salt:b64(salt),iv:b64(iv),data:b64(new Uint8Array(data))});
+ return JSON.stringify({app:'family-cashbook-encrypted',version:1,kdf:'PBKDF2-SHA256',iterations,salt:b64(salt),iv:b64(iv),data:b64(new Uint8Array(data)),...(keyId?{keyId}:{})});
 }
 async function open(text,password){
  if(typeof text!=='string'||text.length>30e6)throw Error('Encrypted backup is too large.');
