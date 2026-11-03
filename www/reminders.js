@@ -2,7 +2,7 @@
 (function(){
 'use strict';
 const KEY='fcb-reminders';
-const LN=()=>window.CashbookNative?.LocalNotifications||null;
+const LN=()=>window.CASHBOOK_TEST_NOTIFY||(window.Capacitor?.isNativePlatform?.()?window.CashbookNative?.LocalNotifications:null)||null;
 const read=()=>{try{return {on:false,before:2,hide:false,...JSON.parse(localStorage.getItem(KEY)||'{}')};}catch{return {on:false,before:2,hide:false};}};
 const write=s=>{try{localStorage.setItem(KEY,JSON.stringify(s));}catch{}};
 let A,timer=null,last='';

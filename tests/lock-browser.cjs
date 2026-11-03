@@ -130,7 +130,7 @@ const set = async (p, pin = PIN) => { await p.locator("#pin-new").fill(pin); awa
     assert.deepEqual(next.errors, []);
     // Reminders: asked for in setup, scheduled without amounts, off again cleanly.
     const rem = await fresh();
-    await rem.p.addInitScript(() => { window.__sent = []; window.CashbookNative = { LocalNotifications: { checkPermissions: async () => ({ display: "prompt" }), requestPermissions: async () => ({ display: "granted" }), getPending: async () => ({ notifications: [] }), cancel: async () => {}, schedule: async ({ notifications }) => { window.__sent.push(...notifications); } } }; });
+    await rem.p.addInitScript(() => { window.__sent = []; window.CASHBOOK_TEST_NOTIFY = { checkPermissions: async () => ({ display: "prompt" }), requestPermissions: async () => ({ display: "granted" }), getPending: async () => ({ notifications: [] }), cancel: async () => {}, schedule: async ({ notifications }) => { window.__sent.push(...notifications); } }; });
     await rem.p.reload();
     await rem.p.getByRole("button", { name: "Start fresh", exact: true }).click(); await rem.p.locator("#tour-skip").click(); await set(rem.p); await rem.p.locator("#pin-got").check(); await rem.p.locator("#pin-finish").click();
     await rem.p.locator("#ob-name").waitFor(); await rem.p.getByRole("button", { name: "Next: income & spending", exact: true }).click(); await rem.p.locator("#ob-expense").fill("5000"); await rem.p.getByRole("button", { name: "Create my plan", exact: true }).click();
