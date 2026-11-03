@@ -43,3 +43,7 @@ The client verifies signed entitlement identity, environment and time. Offline c
 Run actual sandbox purchase, trial, renewal, cancelled-but-paid-through, expiry, refund, restore on a second device, duplicate/out-of-order webhook, provider outage, uncertain checkout acknowledgement and offline-expiry tests. Check simultaneous purchases/devices and operational support recovery. Local tests mock provider APIs and cannot replace those checks. Physical store restoration also needs correctly configured RevenueCat transfer/restore policy and authentic store test receipts.
 
 References: https://razorpay.com/docs/webhooks/validate-test/ ; https://razorpay.com/docs/api/payments/subscriptions/create-subscription/ ; https://www.revenuecat.com/docs/integrations/webhooks ; https://www.revenuecat.com/docs/getting-started/installation/capacitor .
+
+## Family Money by RT Plus
+
+Price: ₹799 a year with a 7-day store trial (₱549 and US$19.99 elsewhere). In `www/config.js` set `purchasesEnabled: true` and the RevenueCat public keys, and create the `money_plus` entitlement with a yearly product and trial offer. Until then every tool stays unlocked. `www/plan.js` reads the store directly on Android and iPhone; Windows and the web stay unlocked until website payments are live. A lapsed user keeps all records, and tools they already use for businesses, foreign accounts and family sharing stay open.

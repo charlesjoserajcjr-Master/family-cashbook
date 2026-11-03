@@ -35,6 +35,7 @@ img{max-width:100%}
 <script src="vendor/qr.js"></script>
 <script src="wifi-ui.js"></script>
 <script src="companion-ui.js"></script>
+<script src="plan.js"></script>
 <script src="reminders.js"></script>
 <script src="guide.js"></script>
 <script src="planner-ui.js"></script>
@@ -1326,7 +1327,7 @@ document.addEventListener('click', async ev => {
   }
   if (a === 'delentry') { if (!confirmTwice(t, 'e' + t.dataset.id)) return; return write(() => db.doc('entries/' + t.dataset.id).delete(), 'Entry deleted'); }
   if (a === 'editcat') return catModal(t.dataset.cat);
-  if (a === 'companion') return CashbookCompanion.open();
+  if (a === 'companion') return window.CashbookPlan?.allow('companion') === false ? undefined : CashbookCompanion.open();
   if (a === 'drive-connect' || a === 'drive-sync') {
     const D = window.__cashbookLocal?.drive; if (!D) return;
     if(!window.__cashbookLocal.encrypted)return CashbookCompanion.open();
@@ -1343,7 +1344,7 @@ document.addEventListener('click', async ev => {
   if (a === 'desk-choose') { const r = await window.__cashbookLocal.desktop.chooseFolder(); if (r) { toast(r.reload ? 'Using the records already in that folder.' : 'Your records now save to the new folder.'); render(); } return; }
   if (a === 'backup') { try { await window.__cashbookLocal.exportData(); } catch (e) { if (!/cancel/i.test(e?.message || '')) toast('Could not save the backup: ' + (e?.message || e)); } return; }
   if (a === 'newcat') return catModal(null, t.dataset.biz);
-  if (a === 'newbiz') return bizModal(null);
+  if (a === 'newbiz') return window.CashbookPlan?.has() === false ? CashbookPlan.show('Adding a business') : bizModal(null);
   if (a === 'editbiz') return bizModal(t.dataset.id);
   if (a === 'savebiz') {
     const name = $('#b-name').value.trim(); if (!name) return toast('Give the business a name.');

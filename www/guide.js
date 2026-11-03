@@ -341,7 +341,7 @@
       }
       A.close();
       if (tool === "entry") A.quickEntry();
-      else if (tool === "card" || tool === "contract" || tool === "reminders") await root.CashbookUI.run(tool);
+      else if (tool === "card" || tool === "contract" || tool === "reminders" || tool === "business") await root.CashbookUI.run(tool);
       else A.go(tool);
       return;
     }

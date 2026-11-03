@@ -2,7 +2,7 @@
 // Keeps a copy of the app itself so it opens without internet. Your ledger data is not stored here;
 // it lives in the browser's storage (and in Google Drive once sync is on).
 const CACHE = 'cashbook-family-v9-__BUILD__';
-const CORE = ['./', 'index.html', 'config.js', 'local-store.js', 'lock.js', 'domain.js', 'ledger-schema.js', 'sync-records.js', 'security.js', 'family-files.js', 'family-ui.js', 'currency.js','currency-ui.js', 'entitlements.js','billing-ui.js','vendor/native-plugins.js', 'planner-ui.js','reminders.js','guide.js','user-guide.html','companion-ui.js', 'wifi-crypto.js', 'wifi-sync.js', 'wifi-ui.js', 'vendor/qr.js', 'manifest.webmanifest', 'icons/favicon-32.png', 'icons/apple-touch-icon.png', 'icons/icon-192.png', 'icons/icon-512.png'];
+const CORE = ['./', 'index.html', 'config.js', 'local-store.js', 'lock.js', 'domain.js', 'ledger-schema.js', 'sync-records.js', 'security.js', 'family-files.js', 'family-ui.js', 'currency.js','currency-ui.js', 'entitlements.js','billing-ui.js','vendor/native-plugins.js', 'planner-ui.js','plan.js','reminders.js','guide.js','user-guide.html','companion-ui.js', 'wifi-crypto.js', 'wifi-sync.js', 'wifi-ui.js', 'vendor/qr.js', 'manifest.webmanifest', 'icons/favicon-32.png', 'icons/apple-touch-icon.png', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(CORE)));
