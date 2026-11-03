@@ -33,6 +33,7 @@
       want.loans && { id: "loans", title: "Add your loans and EMIs", sub: "Use your latest loan statement", done: categories.some((c) => c.group === "Loans & EMIs"), target: "loans" },
       want.foreign && { id: "foreign", title: "Set up foreign or contract income", sub: "Months on contract and on leave, or money in other currencies", done: foreign.length > 0, target: "contract" },
       want.business && { id: "business", title: "Add your business", sub: "A rental, shop, farm or side business", done: Object.keys(state.businesses || {}).length > 0, target: "business" },
+      flags.canRemind && { id: "remind", title: "Turn on bill and EMI reminders", sub: "Add a due day to each bill, and your phone tells you before it falls due", done: !!flags.remindOn, target: "reminders" },
       { id: "entry", title: "Record your first transaction", sub: "Something you spent or received today", done: entries > 0, target: "entry" },
       { id: "backup", title: "Save a backup and check it opens", sub: "This file and your recovery code bring everything back", done: !!flags.backupVerified, target: "backup" },
     ]
@@ -120,6 +121,8 @@
     const flags = progress();
     save({ ...flags, skip: { ...flags.skip, [id]: true } });
   }
+  const device = () => ({ canRemind: !!root.CashbookReminders?.available, remindOn: !!root.CashbookReminders?.settings.on });
+  const live = () => ({ ...progress(), ...device() });
   function tip(key) {
     return progress().tips?.[key] || !TIPS[key]
       ? ""
@@ -137,7 +140,7 @@
   function render() {
     const flags = progress();
     if (flags.hidden) save({ ...flags, hidden: false }); // opening the guide brings the Home card back
-    const steps = checklist(A.state(), progress()),
+    const steps = checklist(A.state(), live()),
       next = steps.find(open_),
       count = steps.filter((x) => !open_(x)).length;
     return `<section class="section"><h2>Setup guide &amp; user manual</h2><div class="panel pad"><p><b>${next ? `Step ${count + 1} of ${steps.length}: ${esc(next.title)}` : "Your setup is complete."}</b></p><ol>${steps.map((x) => `<li>${x.done ? "✓ " : x.skipped ? "Skipped: " : ""}${esc(x.title)}</li>`).join("")}</ol>${next ? stepBody(next) : btn("restart", "Show the setup steps again")}<div class="row" style="margin-top:16px">${btn("restore", "Restore a backup")}${btn("manual", "Read the full user manual")}</div></div></section>`;
@@ -150,7 +153,7 @@
   function banner() {
     if (!A?.state().settings || !A.canWrite()) return "";
     const flags = progress(),
-      steps = checklist(A.state(), flags),
+      steps = checklist(A.state(), { ...flags, ...device() }),
       next = steps.find(open_);
     if (!next || flags.hidden) return "";
     const count = steps.filter((x) => !open_(x)).length;
@@ -338,7 +341,7 @@
       }
       A.close();
       if (tool === "entry") A.quickEntry();
-      else if (tool === "card" || tool === "contract") await root.CashbookUI.run(tool);
+      else if (tool === "card" || tool === "contract" || tool === "reminders") await root.CashbookUI.run(tool);
       else A.go(tool);
       return;
     }

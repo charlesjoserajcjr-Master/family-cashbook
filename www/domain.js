@@ -63,6 +63,26 @@ function goal({target,saved=0,due},month){
  const left=Math.max(0,money(target-saved)),months=Math.max(1,(dy-y)*12+dm-m+1);
  return {remaining:left,monthly:money(left/months),progress:target>0?Math.min(100,saved/target*100):0};
 }
+/* The next reminders for bills with a due day. Paid, completed and closed months are left out. An income row never reminds. */
+function dueReminders({categories,actuals={},closedThrough='',now,before=2,hour=9,monthsAhead=3,limit=60}){
+ const list=[],start=new Date(now.getFullYear(),now.getMonth(),1);
+ for(const [id,c] of Object.entries(categories)){
+  if(c.type==='income'||!c.dueDay)continue;
+  for(let i=0;i<=monthsAhead;i++){
+   const d=new Date(start.getFullYear(),start.getMonth()+i,1),m=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+   if(closedThrough&&m<=closedThrough)continue;
+   const a=actuals[id]?.[m],{remaining}=categoryProjection({planned:c.amounts?.[m]||0,actual:a?.sum||0,hasActual:!!a?.n,complete:!!c.completedMonths?.[m],mode:c.forecastMode||'budget'});
+   if(remaining<=0)continue;
+   const day=Math.min(c.dueDay,new Date(d.getFullYear(),d.getMonth()+1,0).getDate());
+   for(const [k,lead] of [[0,before],[1,0]]){
+    const at=new Date(d.getFullYear(),d.getMonth(),day-lead,hour,0,0);if(at.getTime()<=now.getTime()+60000)continue;
+    const key=id+m+k;let h=7;for(const ch of key)h=(h*31+ch.charCodeAt(0))|0;
+    list.push({id:Math.abs(h)%2000000000+1,name:c.name,at:at.getTime(),when:lead===0?'today':lead===1?'tomorrow':'in '+lead+' days'});
+   }
+  }
+ }
+ return list.sort((a,b)=>a.at-b.at).slice(0,limit);
+}
 const csvCell=s=>'"'+(typeof s==='number'?String(s):String(s??'').replace(/^(?=\s*[=+\-@\t\r\n])/,"'")).replace(/"/g,'""')+'"';
 function dailyCash({month,opening,events=[],minimums={},creditAccounts=[]}){
  const days=new Date(Number(month.slice(0,4)),Number(month.slice(5,7)),0).getDate(),balances={...opening},rows=[],cards=new Set(creditAccounts);
@@ -73,5 +93,5 @@ function dailyCash({month,opening,events=[],minimums={},creditAccounts=[]}){
  }
  return rows;
 }
-return {dailyCash,money,categoryProjection,amortize,scenario,parseCSV,dateISO,importRows,fingerprint,goal,csvCell};
+return {dueReminders,dailyCash,money,categoryProjection,amortize,scenario,parseCSV,dateISO,importRows,fingerprint,goal,csvCell};
 });

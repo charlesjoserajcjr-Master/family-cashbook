@@ -19,3 +19,12 @@ test('backup is sealed with the code, shows its ID and restores with the code on
  const fresh=harness({});await fresh.db;assert.equal((await fresh.api.inspectBackup(text,code.toLowerCase())).encrypted,true);await assert.rejects(fresh.api.inspectBackup(text,'ZZZZZ-ZZZZZ-ZZZZZ-ZZZZZ-ZZZZZ'),new RegExp(id));});
 test('a new recovery code replaces the key and keeps paired devices',async()=>{const h=start();await h.db;const one=h.api.newCode();await h.api.protect(PIN,one);await h.api.writeDeviceVault({peers:[1]});await assert.rejects(h.api.replaceCode('000111',h.api.newCode()));const two=h.api.newCode();await h.api.replaceCode(PIN,two);assert.deepEqual(await h.api.readDeviceVault(),{peers:[1]});assert.equal(await h.api.checkCurrentPin(PIN),true);assert.equal(h.api.lockInfo().keyId,await h.api.codeId(two));});
 test('an existing passphrase ledger gets a PIN without changing its key',async()=>{const h=start();await h.db;await h.api.encryptLedger('my own long passphrase');await h.api.setPin(PIN);assert.equal(h.api.lockInfo().keyId,null);assert.equal(await h.api.checkCurrentPin(PIN),true);});
+const D=require('../www/domain.js');
+test('reminders fall before each due day, skip paid bills and never carry an amount',()=>{
+ const now=new Date(2026,10,3,12),amounts={'2026-11':5000,'2026-12':5000},categories={emi:{name:'Home loan',type:'expense',dueDay:10,forecastMode:'bill',amounts},pay:{name:'Salary',type:'income',dueDay:1,amounts},none:{name:'No day',type:'expense',amounts}};
+ const list=D.dueReminders({categories,now,before:2});
+ assert.deepEqual(list.slice(0,2).map(r=>[new Date(r.at).getDate(),r.when]),[[8,'in 2 days'],[10,'today']]);assert.ok(list.every(r=>r.name==='Home loan'&&!('amount' in r)));assert.equal(new Set(list.map(r=>r.id)).size,list.length);
+ const paid=D.dueReminders({categories,now,before:2,actuals:{emi:{'2026-11':{n:1,sum:5000}}}});assert.equal(new Date(paid[0].at).getMonth(),11);
+ assert.equal(new Date(D.dueReminders({categories:{e:{name:'x',type:'expense',dueDay:31,amounts:{'2027-02':10}}},now:new Date(2027,0,31,12),before:0})[0].at).getDate(),28);
+ assert.equal(D.dueReminders({categories,now,closedThrough:'2026-12'}).length,0);
+});
