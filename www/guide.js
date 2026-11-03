@@ -5,8 +5,8 @@
   else root.CashbookGuide = api;
 })(globalThis, (root) => {
   "use strict";
-  const manualHTML = `<h1>ReadyTrove Family Money — setup &amp; user guide</h1><p>Start small: restore your old ledger or add one account, review your monthly plan, record one transaction, then make a backup. Advanced tools are optional. This is a preview build; payments are disabled and Google sync still needs configuration and live testing.</p>
-<h2>1. Start or restore</h2><p>On the welcome screen choose <b>Restore a backup</b> or <b>Start a new ledger</b>. A normal old Family Cashbook JSON backup needs <b>no passphrase</b>. Select the original file, read the record summary, then confirm replacement. Only encrypted backups ask for their original passphrase. A ZIP, APK, EXE, image or bank-statement CSV is not a full backup.</p><p>The current device copy is offered as a recovery export before replacement. On Android, finish the share/save step; on Windows, save the recovery file. Cancelling that save cancels a desktop restore. Verify that recovery copies were kept. Restore replaces this device's ledger; connected copies can change on later sync. Keep the original backup untouched and disconnect Drive before testing an old copy.</p>
+  const manualHTML = `<h1>ReadyTrove Family Money — setup &amp; user guide</h1><p>Start small: restore your old records or add one account, add your regular income and bills, record one transaction, then save a backup. The setup card on Home takes you through each step. You can take the tour again from More. Other tools are optional. This is a preview build; payments are disabled and Google sync still needs configuration and live testing.</p>
+<h2>1. Start or restore</h2><p>On the welcome screen choose <b>Restore a backup</b> or <b>Start fresh</b>. A normal old Family Cashbook JSON backup needs <b>no passphrase</b>. Select the original file, read the record summary, then confirm replacement. Only encrypted backups ask for their original passphrase. A ZIP, APK, EXE, image or bank-statement CSV is not a full backup.</p><p>The current device copy is offered as a recovery export before replacement. On Android, finish the share/save step; on Windows, save the recovery file. Cancelling that save cancels a desktop restore. Verify that recovery copies were kept. Restore replaces this device's ledger; connected copies can change on later sync. Keep the original backup untouched and disconnect Drive before testing an old copy.</p>
 <h2>2. Review accounts and opening balances</h2><p>Open <b>More → Accounts &amp; backup</b>. Add each bank/cash account with its balance at the start of the plan. Keep the plan start month consistent with those balances. Add credit cards with negative opening balances for debt; a positive card balance is a credit. Imported accounts remain in INR; do not relabel their past amounts as a different currency.</p>
 <h2>3. Build the monthly plan</h2><p>Open <b>Plan</b>. Add income and spending categories and assign their usual account. A <b>Budget</b> retains the expected unspent remainder after partial spending. A <b>Single bill</b> uses the recorded actual instead of adding another full forecast bill. Mark a category complete if nothing else is expected that month. Home forecasts include planned future activity; recorded cash uses entered transactions, not a live bank feed.</p>
 <h2>4. Record everyday transactions</h2><p>Tap <b>Quick transaction</b> on Home or <b>+ Transaction</b> in Transactions. Choose money out or money in, category, amount, date, account and optional note. One-off miscellaneous entries need a description. Wait for a saved acknowledgement. A failed save is not a confirmed entry: retry and check the list. Edit the existing transaction when correcting it.</p><p>Use a <b>Transfer</b> for movement between your own accounts and for credit-card repayments. A transfer is not new income or spending. Card purchases are expenses. Statement import is under More; preview supported CSV rows, assign categories and review duplicates before importing. A statement CSV cannot restore a ledger.</p>
@@ -18,42 +18,70 @@
 <h2>10. Encrypted family file sharing</h2><p>Create separate member keys, compare fingerprints independently and grant only needed accounts. Viewers cannot propose edits; editors return signed proposals which the owner reviews. Send encrypted attachments through WhatsApp/email and import the saved file on the other device. This is manual exchange, not instant server collaboration. A revoked recipient may retain an old copy. Family ledgers use this workflow instead of personal Drive sync. Restoring an owner backup clears old grants; re-invite members.</p>
 <h2>When something goes wrong</h2><p><b>No backup files visible:</b> choose the original exported file from Downloads/Files; the restore picker allows any extension and checks the contents. <b>No passphrase:</b> plain backups do not need one; encrypted backups require the original. <b>File not recognized:</b> keep it unchanged and share the exact error, device and filename extension with support, not the file contents. <b>Saved ledger unreadable:</b> editing is blocked; export the original source before recovery. <b>Not saved:</b> keep the app open, export recoverable data and retry. <b>Sync failed:</b> local saving can still work; check pending status and preserve every copy before resolving conflicts.</p><p>Test previews with copies, not your only financial record. Support needs device/OS, build version, steps and error text; never send passphrases, private keys or financial backups.</p>`;
   function checklist(state, flags = {}) {
+    const want = flags.want || {},
+      skip = flags.skip || {},
+      accounts = Object.values(state.accounts || {}),
+      foreign = Object.values(state.fxAccounts || {}),
+      categories = Object.values(state.categories || {}),
+      entries =
+        Object.keys(state.entries || {}).length +
+        Object.keys(state.fxEntries || {}).length;
     return [
-      {
-        id: "accounts",
-        title: "Review accounts and opening balances",
-        done: !!flags.accountsReviewed,
-        target: "setup",
-      },
-      {
-        id: "plan",
-        title: "Review monthly income and spending",
-        done: !!flags.planReviewed,
-        target: "plan",
-      },
-      {
-        id: "entry",
-        title: "Try your first transaction",
-        done:
-          Object.keys(state.entries || {}).length +
-            Object.keys(state.fxEntries || {}).length >
-            0 || !!flags.entrySkipped,
-        target: "entry",
-      },
-      {
-        id: "backup",
-        title: "Save and check a backup",
-        done: !!flags.backupVerified,
-        target: "backup",
-      },
-      {
-        id: "optional",
-        title: "Choose optional tools",
-        done: !!flags.optionalReviewed,
-        target: "optional",
-      },
-    ];
+      { id: "accounts", title: "Add your other bank accounts", sub: "Savings, current, NRE, NRO and cash", done: accounts.length + foreign.length >= 2, target: "setup" },
+      want.cards && { id: "cards", title: "Add your credit cards", sub: "Enter what you owe today", done: accounts.some((a) => a.kind === "Credit") || foreign.some((a) => a.kind === "card"), target: "card" },
+      { id: "plan", title: "Add your regular income and bills", sub: "Salary, rent, school fees, insurance", done: categories.length >= 3, target: "plan" },
+      want.loans && { id: "loans", title: "Add your loans and EMIs", sub: "Use your latest loan statement", done: categories.some((c) => c.group === "Loans & EMIs"), target: "loans" },
+      want.foreign && { id: "foreign", title: "Set up foreign or contract income", sub: "Months on contract and on leave, or money in other currencies", done: foreign.length > 0, target: "contract" },
+      want.business && { id: "business", title: "Add your business", sub: "A rental, shop, farm or side business", done: Object.keys(state.businesses || {}).length > 0, target: "business" },
+      { id: "entry", title: "Record your first transaction", sub: "Something you spent or received today", done: entries > 0, target: "entry" },
+      { id: "backup", title: "Save a backup and check it opens", sub: "This file and your recovery code bring everything back", done: !!flags.backupVerified, target: "backup" },
+    ]
+      .filter(Boolean)
+      .map((x) => ({ ...x, skipped: !x.done && !!skip[x.id] }));
   }
+  const TOUR = [
+    ["See all your money", "Bank accounts, credit cards and loans in one place.", "M4 8h16v11H4zM4 8l12-4 2 4M15 13h5"],
+    ["Spot a tight month early", "See the lowest point ahead, before it arrives.", "M4 5v14h16M7 9l4 5 3-3 5 4"],
+    ["Plan the month", "Add income, EMIs and bills once. The forecast fills itself in.", "M5 6h14v14H5zM5 10h14M9 3v5M15 3v5"],
+    ["Record what really happened", "A few seconds to add spending, then a quick bank check at month end.", "M5 19l1-4L16 5l3 3L9 18zM13 8l3 3"],
+    ["Tools when you need them", "Loans, goals, businesses and foreign income stay out of the way until you want them.", "M4 6h16M4 12h16M4 18h16M9 4v4M15 10v4M8 16v4"],
+    ["Private on your devices", "No account and no ads. Your PIN protects your records, and they are not uploaded to us.", "M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6zM9 12l2 2 4-4"],
+  ];
+  function tour(then, { replay = false } = {}) {
+    if (root.CASHBOOK_TEST_SKIP_PIN && !replay) {
+      then?.();
+      return;
+    }
+    const box = document.createElement("div");
+    box.id = "tour-root";
+    box.setAttribute("role", "dialog");
+    box.setAttribute("aria-modal", "true");
+    box.style.cssText =
+      "position:fixed;inset:0;z-index:60;background:var(--bg);overflow:auto;display:flex;justify-content:center;padding:24px 16px";
+    document.body.appendChild(box);
+    const finish = () => {
+      box.remove();
+      then?.();
+    };
+    const show = (i) => {
+      const [title, text, icon] = TOUR[i],
+        last = i === TOUR.length - 1;
+      box.innerHTML = `<div style="width:100%;max-width:420px;margin:auto;text-align:center"><div class="panel pad"><div aria-hidden="true" style="width:72px;height:72px;margin:8px auto 12px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center"><svg viewBox="0 0 24 24" width="38" height="38" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="${icon}"/></svg></div><p class="hint" id="tour-step">${i + 1} of ${TOUR.length}</p><h2>${esc(title)}</h2><p>${esc(text)}</p><div class="row" style="justify-content:center;margin-top:16px"><button class="btn" id="${i ? "tour-back" : "tour-skip"}">${i ? "Back" : "Skip"}</button><button class="btn primary" id="tour-next">${last ? "Continue" : "Next"}</button></div></div></div>`;
+      box.querySelector("#tour-next").onclick = () => (last ? finish() : show(i + 1));
+      const skip = box.querySelector("#tour-skip"),
+        back = box.querySelector("#tour-back");
+      if (skip) skip.onclick = finish;
+      if (back) back.onclick = () => show(i - 1);
+      box.querySelector("#tour-next").focus();
+    };
+    show(0);
+  }
+  const TIPS = {
+    plan: "This is your monthly plan. Add your income and regular bills, and the forecast on Home updates itself.",
+    transactions: "Record what really happened. Tick a planned item to confirm it, or add a new one.",
+    month: "At month end, type each account's real bank balance. Any difference shows money you did not record.",
+    loans: "Add each loan from your latest statement. The schedule and debt-free date fill in for you.",
+  };
   let A,
     busy = false,
     candidate = null,
@@ -73,68 +101,60 @@
     );
   const btn = (action, label, extra = "") =>
     `<button class="btn" data-guide="${action}" ${extra}>${label}</button>`;
-  function signature() {
-    const s = A.state();
-    return [
-      s.settings?.start,
-      s.settings?.end,
-      ...Object.keys(s.accounts || {}).sort(),
-      ...Object.keys(s.fxAccounts || {}).sort(),
-    ].join("|");
-  }
   function progress() {
     try {
-      const o = JSON.parse(root.localStorage.getItem(KEY) || "{}");
-      return o.signature === signature() ? o.flags || {} : {};
+      return JSON.parse(root.localStorage.getItem(KEY) || "{}").flags || {};
     } catch {
       return {};
     }
   }
+  function save(flags) {
+    try {
+      root.localStorage.setItem(KEY, JSON.stringify({ flags }));
+    } catch {}
+  }
   function mark(flag) {
-    const flags = { ...progress(), [flag]: true };
-    root.localStorage.setItem(
-      KEY,
-      JSON.stringify({ signature: signature(), flags }),
-    );
+    save({ ...progress(), [flag]: true });
+  }
+  function skipStep(id) {
+    const flags = progress();
+    save({ ...flags, skip: { ...flags.skip, [id]: true } });
+  }
+  function tip(key) {
+    return progress().tips?.[key] || !TIPS[key]
+      ? ""
+      : `<div class="panel pad guide-banner"><p style="margin:0 0 8px">${esc(TIPS[key])}</p>${btn("tip", "Got it", `data-k="${key}"`)}</div>`;
   }
   function cancelRestore() {
     session++;
     candidate = null;
   }
+  const open_ = (x) => !x.done && !x.skipped;
+  const stepButton = (x) =>
+    x.target === "backup"
+      ? btn("open", "Start")
+      : btn("tool", "Start", `data-tool="${x.target}"`);
   function render() {
-    const s = A.state(),
-      steps = checklist(s, progress()),
-      next = steps.find((x) => !x.done),
-      count = steps.filter((x) => x.done).length;
-    return `<section class="section"><h2>Setup guide &amp; user manual</h2><div class="panel pad"><p><b>${next ? `Step ${count + 1} of ${steps.length}: ${esc(next.title)}` : "Your essential setup is reviewed."}</b></p><p>Work through the steps in order. You can pause and return here; the checklist is saved on this device. Checking a step does not change financial records.</p><ol>${steps.map((x) => `<li>${x.done ? "✓ " : ""}${esc(x.title)}</li>`).join("")}</ol>${!next ? btn("restart", "Review setup again") : stepBody(next)}<div class="row" style="margin-top:16px">${btn("restore", "Restore a backup")}${btn("manual", "Read the full user manual")}</div></div></section>`;
+    const flags = progress();
+    if (flags.hidden) save({ ...flags, hidden: false }); // opening the guide brings the Home card back
+    const steps = checklist(A.state(), progress()),
+      next = steps.find(open_),
+      count = steps.filter((x) => !open_(x)).length;
+    return `<section class="section"><h2>Setup guide &amp; user manual</h2><div class="panel pad"><p><b>${next ? `Step ${count + 1} of ${steps.length}: ${esc(next.title)}` : "Your setup is complete."}</b></p><ol>${steps.map((x) => `<li>${x.done ? "✓ " : x.skipped ? "Skipped: " : ""}${esc(x.title)}</li>`).join("")}</ol>${next ? stepBody(next) : btn("restart", "Show the setup steps again")}<div class="row" style="margin-top:16px">${btn("restore", "Restore a backup")}${btn("manual", "Read the full user manual")}</div></div></section>`;
   }
   function stepBody(step) {
-    const copy = {
-      accounts:
-        "Use balances from the start of your plan. Check every imported account; card debt should be negative.",
-      plan: "Review your plan dates, monthly income and spending. Budget and Single bill treat actual entries differently.",
-      entry:
-        "Save a genuine transaction when ready, then check it in Transactions. You can skip this step without creating sample data.",
-      backup:
-        "Save a recovery copy away from this device and inspect it before relying on it. A browser download or share sheet alone does not prove the file was kept.",
-      optional:
-        "Start with the basics. Currency accounts, loan tools and goals are optional. Google sync needs configuration; family sharing is manual file exchange. Payments remain disabled.",
-    };
-    const flags = {
-      accounts: "accountsReviewed",
-      plan: "planReviewed",
-      entry: "entrySkipped",
-      backup: "backupVerified",
-      optional: "optionalReviewed",
-    };
-    return `<p>${copy[step.id]}</p><div class="row">${btn("tool", step.id === "entry" ? "Quick transaction" : step.id === "backup" ? "Save a backup" : step.id === "optional" ? "See optional tools" : "Open " + (step.id === "accounts" ? "accounts" : "Plan"), `data-tool="${step.target}"`)}${step.id === "backup" ? btn("review-only", "Inspect a saved backup") : ""}${btn("mark", step.id === "entry" ? "Skip entry for now" : step.id === "backup" ? "I have saved and checked a backup" : step.id === "optional" ? "Finish setup review" : "I have reviewed this step", `data-flag="${flags[step.id]}"`)}</div>`;
+    if (step.id === "backup")
+      return `<p>${esc(step.sub)}. A download or share sheet alone does not prove the file was kept, so check that it opens.</p><div class="row">${btn("tool", "Save a backup", 'data-tool="backup"')}${btn("review-only", "Inspect a saved backup")}${btn("mark", "I have saved and checked a backup", 'data-flag="backupVerified"')}${btn("skip", "Skip", 'data-step="backup"')}</div>`;
+    return `<p>${esc(step.sub)}.</p><div class="row">${stepButton(step)}${btn("skip", "Skip", `data-step="${step.id}"`)}</div>`;
   }
   function banner() {
     if (!A?.state().settings || !A.canWrite()) return "";
-    const next = checklist(A.state(), progress()).find((x) => !x.done);
-    return next
-      ? `<div class="panel pad guide-banner"><b>Continue setup: ${esc(next.title)}</b><p class="hint">Follow the steps in order, or open the user manual whenever you need it.</p>${btn("open", "Continue setup")}${btn("manual", "User manual")}</div>`
-      : "";
+    const flags = progress(),
+      steps = checklist(A.state(), flags),
+      next = steps.find(open_);
+    if (!next || flags.hidden) return "";
+    const count = steps.filter((x) => !open_(x)).length;
+    return `<div class="panel pad guide-banner"><div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline"><b>Set up Family Money: ${count} of ${steps.length} done</b>${btn("hide", "Hide", 'style="min-height:0;padding:2px 8px"')}</div><div aria-hidden="true" style="height:6px;border-radius:3px;background:var(--sunk);margin:8px 0 12px;overflow:hidden"><div style="height:100%;width:${Math.round((count / steps.length) * 100)}%;background:var(--accent)"></div></div><p style="margin:0"><b>${esc(next.title)}</b></p><p class="hint">${esc(next.sub)}</p><div class="row">${stepButton(next)}${btn("skip", "Skip", `data-step="${next.id}"`)}${btn("open", "See all steps")}</div></div>`;
   }
   function open() {
     cancelRestore();
@@ -143,7 +163,28 @@
   function fresh() {
     cancelRestore();
     A.modal(
-      `<h2>Start with the essentials</h2><p id="guide-fresh-step">Step 1 of 2 · your first account</p><section id="guide-account"><p>Enter the balance at the start of the plan month. Add other accounts after creating your ledger.</p><div class="form"><label class="f">Account name<input id="ob-name" value="Main savings"></label><label class="f">Opening balance at start of month (₹)<input id="ob-balance" inputmode="decimal" value="0"></label><label class="f">Start month<input id="ob-start" type="month" value="${new Date().getFullYear() + "-" + String(new Date().getMonth() + 1).padStart(2, "0")}"></label></div>${btn("fresh-next", "Next: income & spending")}</section><section id="guide-income" hidden><p>Use monthly estimates. Leave a value at zero if you want to add detailed categories later. The plan initially covers 24 months.</p><div class="form"><label class="f">Monthly income (₹)<input id="ob-income" type="number" min="0" value="0"></label><label class="f">Monthly household budget (₹)<input id="ob-expense" type="number" min="0" value="0"></label></div>${btn("fresh-back", "Back")}<button class="btn primary" data-feature="ob-save">Create my plan</button></section>${btn("close", "Cancel")}`,
+      `<h2>Start with the essentials</h2><p id="guide-fresh-step">Step 1 of 2 · your first account</p><section id="guide-account"><p>Start with your main account. Not sure of the balance on the 1st? Use today's balance. You can add other accounts next.</p><div class="form"><label class="f">Account name<input id="ob-name" value="Main savings"></label><label class="f">Balance on the 1st of this month (₹)<input id="ob-balance" inputmode="decimal" placeholder="0"></label><label class="f">Start month<input id="ob-start" type="month" value="${new Date().getFullYear() + "-" + String(new Date().getMonth() + 1).padStart(2, "0")}"></label></div>${btn("fresh-next", "Next: income & spending")}</section><section id="guide-income" hidden><p>Rough monthly figures are fine. You can add the details later.</p><div class="form"><label class="f">Monthly income (₹)<input id="ob-income" type="number" min="0" placeholder="0"></label><label class="f">Monthly household budget (₹)<input id="ob-expense" type="number" min="0" placeholder="0"></label></div>${btn("fresh-back", "Back")}<button class="btn primary" data-feature="ob-save">Create my plan</button></section>${btn("close", "Cancel")}`,
+    );
+  }
+  /* After the first numbers: show what the forecast found, then ask what applies. */
+  async function afterStart() {
+    if (root.CASHBOOK_TEST_SKIP_PIN) return;
+    for (let i = 0; i < 40 && !A.computed()?.ms?.length; i++) {
+      A.refresh();
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    const c = A.computed(),
+      ahead = (c?.ms || []).filter((m) => m >= c.cur);
+    let low = ahead[0];
+    ahead.forEach((m) => {
+      if (c.total[m] < c.total[low]) low = m;
+    });
+    const label = low ? new Date(low + "-01T12:00:00").toLocaleDateString("en-IN", { month: "long", year: "numeric" }) : "";
+    const amount = low ? (c.total[low] < 0 ? "−" : "") + "₹" + Math.abs(Math.round(c.total[low])).toLocaleString("en-IN") : "";
+    const box = (id, text) =>
+      `<label class="f" style="display:flex;gap:8px;align-items:center;flex-direction:row"><input id="${id}" type="checkbox" style="width:auto">${text}</label>`;
+    A.modal(
+      `<h2>Your forecast is ready</h2>${low ? `<p>On these figures, your cash is lowest in <b>${esc(label)}</b>, at <b>${esc(amount)}</b>. It gets more accurate as you add details.</p>` : ""}<p><b>What applies to you?</b> We will add only these steps.</p>${box("want-cards", "Credit cards")}${box("want-loans", "Loans or EMIs")}${box("want-foreign", "Foreign or contract income")}${box("want-business", "A business or rental")}${btn("want-save", "Continue")}`,
     );
   }
   function openRestore(file, reviewOnly = false) {
@@ -197,6 +238,8 @@
       return;
     }
     if (a === "open") {
+      const flags = progress();
+      if (flags.hidden) save({ ...flags, hidden: false });
       open();
       return;
     }
@@ -249,11 +292,32 @@
       open();
       return;
     }
+    if (a === "skip") {
+      skipStep(target.dataset.step);
+      if (document.getElementById("modal")?.textContent.includes("Setup guide")) open();
+      return;
+    }
+    if (a === "hide") {
+      save({ ...progress(), hidden: true });
+      A.toast("Setup hidden. Open it again from More.");
+      return;
+    }
+    if (a === "tip") {
+      const flags = progress();
+      save({ ...flags, tips: { ...flags.tips, [target.dataset.k]: true } });
+      return;
+    }
+    if (a === "want-save") {
+      const on = (id) => !!document.getElementById("want-" + id)?.checked;
+      save({ ...progress(), want: { cards: on("cards"), loans: on("loans"), foreign: on("foreign"), business: on("business") } });
+      A.close();
+      return;
+    }
     if (a === "mark") {
       if (
         target.dataset.flag === "backupVerified" &&
         !confirm(
-          "Have you kept the backup and checked that you can open it? Keep any passphrase separately.",
+          "Have you kept the backup and checked that you can open it? Keep your recovery code separately.",
         )
       )
         return;
@@ -274,7 +338,7 @@
       }
       A.close();
       if (tool === "entry") A.quickEntry();
-      else if (tool === "optional") A.go("more");
+      else if (tool === "card" || tool === "contract") await root.CashbookUI.run(tool);
       else A.go(tool);
       return;
     }
@@ -358,6 +422,9 @@
     open,
     openRestore,
     fresh,
+    tour,
+    tip,
+    afterStart,
     cancelRestore,
     get busy() {
       return busy;

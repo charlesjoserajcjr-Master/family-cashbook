@@ -37,19 +37,25 @@ function afterRender(tab){
  const el=document.createElement('div');el.id='feature-toolbar';el.className='row';el.style.marginTop='12px';
  if(tab==='overview'){
   const r=recorded();
-  el.innerHTML=CashbookGuide.banner()+btn('quick-entry','Quick transaction')+btn('companion','Phone & laptop sync')+'<div class="panel pad"><b>Recorded cash today: '+(r.fxMissing.length?'FX rates needed':fmt(r.cash))+'</b><div class="hint">Calculated from opening balances and recorded transactions. Forecast cards below include expected future activity.</div></div>'+btn('calendar','Upcoming bills')+btn('scenarios','Compare a scenario');
+  el.innerHTML=CashbookGuide.banner()+btn('quick-entry','Quick transaction')+'<div class="panel pad"><b>Recorded cash today: '+(r.fxMissing.length?'FX rates needed':fmt(r.cash))+'</b><div class="hint">Calculated from opening balances and recorded transactions. Forecast cards below include expected future activity.</div></div>';
+  const more=document.createElement('div');more.id='home-more';more.className='row';more.style.margin='12px 0';more.innerHTML=btn('calendar','Upcoming bills')+btn('scenarios','Compare a scenario')+btn('companion','Phone & laptop sync');$('#home-more')?.remove();$('.kpis')?.after(more);
  }else if(tab==='plan')el.innerHTML=btn('scenarios','What-if scenarios')+btn('goals','Savings goals')+btn('contract','Contract income')+btn('calendar','Bill dates');
  else if(tab==='transactions')el.innerHTML=btn('import','Import statement')+btn('month','Monthly review');
  else if(tab==='month'&&!A.locked(currentMonth()))el.innerHTML=btn('close-month','Review and close '+currentMonth())+btn('complete','Complete a category');
  else if(tab==='loans')el.innerHTML=btn('prepay','Compare prepayments');
+ el.innerHTML=(window.CashbookGuide?.tip(tab)||'')+el.innerHTML;
  if(el.innerHTML)$('#view').prepend(el);
 }
 function menu(){
- return panel('More','<p>Choose the tools you need. Your data stays available without a subscription.</p><div class="tool-grid">'+[
- ['guide','Setup guide & user manual'],['month','Monthly review'],['loans','Loans & EMIs'],['networth','Net worth'],['business','Businesses'],['setup','Accounts & backup'],
- ['companion','Phone & laptop sync'],['calendar','Bills calendar'],['goals','Savings goals'],['scenarios','What-if scenarios'],['prepay','Loan prepayment'],['import','Statement import'],
- ['contract','Contract income & currency conversion'],['card','Add credit card'],['security','PIN, recovery code and lock'],['conflicts','Sync history'],['plans','Plans & family access'],['family','Encrypted family file sync'],['currency','Multi-currency accounts & remittances'],['billing','Purchases & restore']
- ].map(([k,v])=>btn(k,v)).join('')+'</div>');
+ const paid=window.CASHBOOK_CONFIG?.billing?.purchasesEnabled||window.CASHBOOK_TEST_SKIP_PIN;
+ const groups=[
+ ['Everyday',[['month','Monthly review'],['calendar','Bills calendar'],['import','Statement import']]],
+ ['Planning',[['goals','Savings goals'],['scenarios','What-if scenarios'],['contract','Contract income & currency conversion'],['business','Businesses']]],
+ ['Loans and wealth',[['loans','Loans & EMIs'],['prepay','Loan prepayment'],['networth','Net worth'],['card','Add credit card'],['currency','Multi-currency accounts & remittances']]],
+ ['Family and devices',[['companion','Phone & laptop sync'],['family','Encrypted family file sync'],['conflicts','Sync history']]],
+ ['Safety and help',[['security','PIN, recovery code and lock'],['setup','Accounts & backup'],['guide','Setup guide & user manual'],['tour','Take the tour']]],
+ ...(paid?[['Plans',[['plans','Plans & family access'],['billing','Purchases & restore']]]]:[])];
+ return panel('More',groups.map(([h,items])=>'<h3>'+h+'</h3><div class="tool-grid">'+items.map(([k,v])=>btn(k,v)).join('')+'</div>').join('')).replace(btn('menu','All tools'),'');
 }
 function scenarios(){
  const saved=features('scenario');
@@ -167,7 +173,7 @@ function more(){
  if(screen==='import'&&importDirty&&$('#im-file'))return;
  const active=$('#view'),results={};if(active?.dataset.screen===screen)for(const key of ['pp-result','sc-result']){const el=document.getElementById(key);if(el)results[key]=el.innerHTML;}if(active&&active.dataset.screen===screen){const values={};for(const e of active.querySelectorAll('input[id],select[id],textarea[id]'))if(e.type!=='file'&&e.type!=='password')values[e.id]={value:e.value,checked:e.checked};drafts.set(screen,values);}
  const views={menu,guide:()=>CashbookGuide.render(),companion:()=>CashbookCompanion.render(),scenarios,goals,prepay,calendar,import:importScreen,contract,security,conflicts,plans,family:()=>CashbookFamilyUI.render(),currency:()=>CashbookCurrencyUI.render(),billing:()=>CashbookBillingUI.render()};$('#view').innerHTML=(views[screen]||menu)();$('#view').dataset.screen=screen;for(const [key,value]of Object.entries(drafts.get(screen)||{})){const e=document.getElementById(key);if(e){e.value=value.value;e.checked=value.checked;}}for(const [key,html]of Object.entries(results)){const el=document.getElementById(key);if(el)el.innerHTML=html;}}
-function onboard(){CashbookLock.protect(()=>CashbookGuide.fresh(),{cancel:()=>A.go('overview')});}
+function onboard(){CashbookGuide.tour(()=>CashbookLock.protect(()=>CashbookGuide.fresh(),{cancel:()=>A.go('overview')}));}
 
 async function action(t){
  const a=t.dataset.feature;
@@ -175,6 +181,7 @@ async function action(t){
  if(a==='recover-restore'){const f=$('#recover-file').files[0];if(!f)throw Error('Choose a backup.');if(!confirm('Replace the unreadable ledger with this backup? Export the original source first.'))return;await window.__cashbookLocal.importData(await f.text(),$('#recover-pass').value);location.reload();return;}
  if(a==='unlock'){await window.__cashbookLocal.unlock($('#unlock-pass').value);$('#unlock-pass')?.blur();return;}
  if(a==='sec-enable'){const p=$('#sec-ledger').value;if(p!==$('#sec-ledger-confirm').value)throw Error('Passphrases do not match.');if(!confirm('Enable encryption for future saved copies? Older plaintext backups remain readable. A lost passphrase cannot be recovered.'))return;await window.__cashbookLocal.encryptLedger(p);$('#sec-ledger').value='';$('#sec-ledger-confirm').value='';A.toast('Working ledger encrypted. Keep the passphrase separately.');return;}
+ if(a==='tour'){CashbookGuide.tour(null,{replay:true});return;}
  if(a==='sec-pin'){CashbookLock.changePin();return;}
  if(a==='sec-code'){CashbookLock.replaceCode();return;}
  if(a==='sec-lock'){await window.__cashbookLocal.lock();return;}
@@ -244,7 +251,7 @@ async function action(t){
   if(!A.db().applyBatch)throw Error('This adapter does not support initial setup in one save.');
   const ops=[{type:'set',path:'accounts/'+account,data:{name,opening:balance,min:0,kind:'Savings',order:0}}];
   for(const [label,type,amount]of [['Monthly income','income',income],['Household budget','expense',expense]])if(amount)ops.push({type:'set',path:'categories/'+id(),data:{name:label,type,group:type==='income'?'Income':'Household',account,forecastMode:'budget',amounts:Object.fromEntries(months.map(m=>[m,amount]))}});
-  ops.push({type:'set',path:'settings/main',data:{start,end:months.at(-1),currency:'INR'}});await A.db().applyBatch(ops);A.close();A.go('overview');return;
+  ops.push({type:'set',path:'settings/main',data:{start,end:months.at(-1),currency:'INR'}});await A.db().applyBatch(ops);A.close();A.go('overview');CashbookGuide.afterStart();return;
  }
 }
 document.addEventListener('click',async e=>{
@@ -263,5 +270,5 @@ document.addEventListener('change',e=>{if(e.target.id==='im-file')importDirty=tr
 function recoveryScreen(){
  $('#view').innerHTML=panel('Saved ledger could not be read','<p>Editing is blocked to protect the original data. Export the unreadable source first, then restore a known backup. Nothing is overwritten until the backup validates.</p>'+btn('source-export','Export original source')+'<label class="f">Verified backup<input type="file" id="recover-file" accept=".json"></label>'+field('Passphrase, for encrypted backups','recover-pass','password')+btn('recover-restore','Restore backup'));$('#fab').hidden=true;
 }
-window.CashbookUI={toast:m=>A.toast(m),refresh:()=>A.refresh(),reset:()=>{screen="menu";},recoveryScreen,attach:api=>{A=api;window.CashbookFamilyUI?.attach(api);window.CashbookCurrencyUI?.attach(api);window.CashbookBillingUI?.attach(api);window.CashbookCompanion?.attach(api);window.CashbookGuide?.attach(api);},get busy(){return operations>0||!!window.CashbookGuide?.busy||!!window.CashbookCompanion?.busy||!!window.CashbookFamilyUI?.busy||!!window.CashbookCurrencyUI?.busy||!!window.CashbookBillingUI?.busy;},afterRender,more,onboard,lockScreen};
+window.CashbookUI={run:k=>action({dataset:{feature:k}}),toast:m=>A.toast(m),refresh:()=>A.refresh(),reset:()=>{screen="menu";},recoveryScreen,attach:api=>{A=api;window.CashbookFamilyUI?.attach(api);window.CashbookCurrencyUI?.attach(api);window.CashbookBillingUI?.attach(api);window.CashbookCompanion?.attach(api);window.CashbookGuide?.attach(api);},get busy(){return operations>0||!!window.CashbookGuide?.busy||!!window.CashbookCompanion?.busy||!!window.CashbookFamilyUI?.busy||!!window.CashbookCurrencyUI?.busy||!!window.CashbookBillingUI?.busy;},afterRender,more,onboard,lockScreen};
 })();
