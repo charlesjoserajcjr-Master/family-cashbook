@@ -42,20 +42,57 @@ function parseCSV(text){
  if(rows.length>5001)throw Error('Import at most 5,000 transactions at a time.');
  return rows;
 }
-function dateISO(value){
- const s=String(value).trim();let m=s.match(/^(\d{4})-(\d{2})-(\d{2})$/),out=s;
- if(!m){m=s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);if(!m)throw Error('Dates must be YYYY-MM-DD or DD/MM/YYYY.');out=m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');}
- const d=new Date(out+'T12:00:00Z');if(!Number.isFinite(+d)||d.toISOString().slice(0,10)!==out)throw Error('Invalid date: '+value);return out;
+const MONTHS=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+function dateParts(value){
+ const s=String(value).trim().replace(/[T\s]+\d{1,2}:\d{2}(:\d{2})?(\s*[ap]m)?.*$/i,'');
+ let m=s.match(/^(\d{4})-(\d{2})-(\d{2})$/);if(m)return [m[1],m[2],m[3]];
+ m=s.match(/^(\d{1,2})[\/\-. ](\d{1,2}|[a-z]{3,9})[\/\-. ,]+(\d{4}|\d{2})$/i);if(!m)return null;
+ const month=/\d/.test(m[2])?m[2]:MONTHS.indexOf(m[2].slice(0,3).toLowerCase())+1;if(!month)return null;
+ return [m[3].length===2?'20'+m[3]:m[3],String(month).padStart(2,'0'),m[1].padStart(2,'0')];
 }
+function dateISO(value){
+ const p=dateParts(value);if(!p)throw Error('Dates must be like 31/12/2026, 31-Dec-26 or 2026-12-31.');
+ const out=p.join('-'),d=new Date(out+'T12:00:00Z');if(!Number.isFinite(+d)||d.toISOString().slice(0,10)!==out)throw Error('Invalid date: '+value);return out;
+}
+const HEADS={
+ date:['date','txndate','transactiondate','trandate','transdate','postdate','postingdate','valuedate','valuedt'],
+ desc:['description','narration','particulars','details','remarks','transactionremarks','transactiondetails','transactionparticulars','note'],
+ amount:['amount','amountinr','transactionamount','transactionamountinr','txnamount','txnamountinr'],
+ debit:['debit','debitamount','debitamountinr','debitamt','withdrawal','withdrawals','withdrawalamt','withdrawalamount','withdrawalamountinr','withdrawalinr','dr'],
+ credit:['credit','creditamount','creditamountinr','creditamt','deposit','deposits','depositamt','depositamount','depositamountinr','depositinr','cr'],
+ drcr:['drcr','crdr','debitcredit','creditdebit','transactiontype','txntype','type']
+};
+const headIndex=(heads,names)=>{for(const n of names){const i=heads.indexOf(n);if(i>=0)return i;}return -1;};
+const emptyCell=t=>!t||/^(-+|na|n\/a|nil)$/i.test(t);
+function statementAmount(s){
+ let t=String(s??'').trim();if(emptyCell(t))return 0;
+ let sign=1;const dc=t.match(/\s*(dr|cr)\.?$/i);if(dc){if(dc[1].toLowerCase()==='dr')sign=-1;t=t.slice(0,dc.index);}
+ if(/^\(.*\)$/.test(t)){sign=-1;t=t.slice(1,-1);}
+ if(/-$/.test(t)){sign=-1;t=t.slice(0,-1);}
+ t=t.replace(/[,₹\s]|^(inr|rs\.?)/gi,'');
+ if(!/^[-+]?\d+(\.\d{1,4})?$/.test(t))throw Error('Invalid amount: '+s);
+ const n=Number(t)*sign;if(!Number.isFinite(n)||Math.abs(n)>1e12)throw Error('Amount is too large.');return n;
+}
+/* Banks put titles above the table and totals below it. The table starts at the first row with date, description and amount headings; rows without a date, or with no amount, are skipped and counted. */
 function importRows(text){
- const rows=parseCSV(text);if(rows.length<2)throw Error('Include a header row and at least one transaction.');
- const heads=rows.shift().map(s=>s.trim().toLowerCase().replace(/[^a-z]/g,''));
- const find=names=>heads.findIndex(s=>names.includes(s));
- const date=find(['date','transactiondate','valuedate']),desc=find(['description','narration','particulars','note']);
- const amount=find(['amount','amountinr']),debit=find(['debit','withdrawal','withdrawals']),credit=find(['credit','deposit','deposits']);
- if(date<0||desc<0||(amount<0&&(debit<0||credit<0)))throw Error('Headers needed: Date, Description, Amount (negative for expense); or Date, Description, Debit, Credit.');
- const numeric=s=>{const t=String(s||'').trim().replace(/[,₹\s]/g,'');if(!t)return 0;if(!/^-?\d+(\.\d{1,2})?$/.test(t))throw Error('Invalid amount: '+s);const n=Number(t);if(!Number.isFinite(n)||Math.abs(n)>1e12)throw Error('Amount is too large.');return n;};
- return rows.map((r,i)=>{let value=amount>=0?numeric(r[amount]):numeric(r[credit])-numeric(r[debit]);if(!value)throw Error('Zero amount on row '+(i+2));return {date:dateISO(r[date]),note:r[desc].trim(),amount:money(Math.abs(value)),type:value>0?'income':'expense',sourceRow:i+2};});
+ const rows=parseCSV(text),clean=r=>r.map(s=>s.trim().toLowerCase().replace(/[^a-z]/g,''));
+ let start=-1,c;
+ for(let i=0;i<Math.min(rows.length,40)&&start<0;i++){
+  const h=clean(rows[i]),x={date:headIndex(h,HEADS.date),desc:headIndex(h,HEADS.desc),amount:headIndex(h,HEADS.amount),debit:headIndex(h,HEADS.debit),credit:headIndex(h,HEADS.credit),drcr:headIndex(h,HEADS.drcr)};
+  if(x.date>=0&&x.desc>=0&&(x.amount>=0||(x.debit>=0&&x.credit>=0))){start=i;c=x;}
+ }
+ if(start<0)throw Error('We could not find the statement table. It needs columns for date, description and amount, or date, description, debit and credit.');
+ const out=[];let skipped=0;
+ rows.slice(start+1).forEach((r,i)=>{
+  const row=start+i+2,cell=k=>c[k]>=0?String(r[c[k]]??''):'';
+  if(!dateParts(cell('date'))){skipped++;return;}
+  let value=c.amount>=0?statementAmount(cell('amount')):statementAmount(cell('credit'))-statementAmount(cell('debit'));
+  if(c.amount>=0&&c.drcr>=0){const k=cell('drcr').trim().toLowerCase();if(/^(dr|d|debit|withdrawal)/.test(k))value=-Math.abs(value);else if(/^(cr|c|credit|deposit)/.test(k))value=Math.abs(value);}
+  if(!value){skipped++;return;}
+  try{out.push({date:dateISO(cell('date')),note:cell('desc').trim(),amount:money(Math.abs(value)),type:value>0?'income':'expense',sourceRow:row});}catch(e){throw Error(e.message+' (row '+row+')');}
+ });
+ if(!out.length)throw Error('Include a header row and at least one transaction.');
+ out.skipped=skipped;return out;
 }
 const fingerprint=r=>JSON.stringify([r.date,r.accountId,money(r.amount),r.type,String(r.note||'').trim().toLowerCase()]);
 function goal({target,saved=0,due},month){
