@@ -448,7 +448,6 @@ function spark(accId) {
 }
 
 function overview() {
- if(C.fxMissing.length){$('#view').innerHTML='<section class="section"><div class="panel pad"><h2>Exchange rates needed</h2><p>Foreign accounts need an exchange rate before they can be added to your totals. Add the rates listed below.</p><p>'+C.fxMissing.map(esc).join(', ')+'</p><button class="btn" data-feature="currency">Open currency accounts</button></div></section>';return;}
   const cur = C.cur, last = C.ms[C.ms.length - 1];
   const nowTot = C.total[cur] ?? 0;
   const ahead = C.ms.filter(m => m >= cur);
@@ -1066,7 +1065,7 @@ function netWorthAt(m) {
   return { banks, assets, loans, other, totalA: banks + assets, totalL: loans + other, net: banks + assets - loans - other };
 }
 function networth() {
- if(C.fxMissing.length)return overview();
+ 
   const m = selMonth, cur = C.cur, first = C.ms[0], last = C.ms[C.ms.length - 1];
   const nw = netWorthAt(m), start = netWorthAt(first), end = netWorthAt(last);
   const series = C.ms.map(x => ({ m: x, v: netWorthAt(x).net }));

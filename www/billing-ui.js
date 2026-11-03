@@ -43,8 +43,8 @@
       '</p><p>' +
       (token
         ? (token.active
-            ? 'Verified Plus access'
-            : 'No current verified Plus access') +
+            ? 'Family Money by RT Plus is active'
+            : 'Family Money by RT Plus is not active') +
           ' · ' +
           esc(token.status) +
           ' · offline verification valid until ' +

@@ -128,6 +128,17 @@ const set = async (p, pin = PIN) => { await p.locator("#pin-new").fill(pin); awa
     await next.p.reload(); await next.p.locator("#pin-entry").fill(PIN); await next.p.locator("#pin-open").click();
     await next.p.locator("#lock-root").waitFor({ state: "detached" }); await next.p.getByText("Old savings").first().waitFor();
     assert.deepEqual(next.errors, []);
+    // A foreign account with no rate keeps Home and Net worth on screen, with a warning.
+    const fx = await fresh();
+    await fx.c.addInitScript(() => { window.CASHBOOK_TEST_SKIP_PIN = true; });
+    await fx.p.evaluate(() => localStorage.setItem("family-cashbook-data.json", JSON.stringify({ app: "family-cashbook", version: 2, docs: { "settings/main": { start: "2026-01", end: "2027-12", currency: "INR" }, "accounts/a": { name: "Home savings", opening: 900, min: 0, kind: "Savings", order: 0 }, "fxAccounts/u": { name: "US account", currency: "USD", kind: "bank", opened: "2026-01-01", opening: 100, openingRateToINR: 83 } }, times: {}, tomb: {}, fieldMeta: {}, conflicts: {} })));
+    await fx.p.reload();
+    await fx.p.locator("#fx-warning").waitFor(); await fx.p.getByText("Foreign accounts are left out").waitFor();
+    await fx.p.getByText("Home savings").first().waitFor(); await shot(fx.p, "9-rates");
+    assert.equal(await fx.p.locator("#fx-warning .hint").textContent(), "Add an exchange rate for: USD");
+    await fx.p.locator('#fx-warning [data-feature="currency"]').click();
+    await fx.p.getByText("Multi-currency accounts").first().waitFor();
+    assert.deepEqual(fx.errors, []);
     // Reminders: asked for in setup, scheduled without amounts, off again cleanly.
     const rem = await fresh();
     await rem.p.addInitScript(() => { window.__sent = []; window.CASHBOOK_TEST_NOTIFY = { checkPermissions: async () => ({ display: "prompt" }), requestPermissions: async () => ({ display: "granted" }), getPending: async () => ({ notifications: [] }), cancel: async () => {}, schedule: async ({ notifications }) => { window.__sent.push(...notifications); } }; });
