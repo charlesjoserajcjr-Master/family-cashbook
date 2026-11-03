@@ -35,6 +35,7 @@ img{max-width:100%}
 <script src="vendor/qr.js"></script>
 <script src="wifi-ui.js"></script>
 <script src="companion-ui.js"></script>
+<script src="reminders.js"></script>
 <script src="guide.js"></script>
 <script src="planner-ui.js"></script>
 <link rel="stylesheet" href="vendor/fonts/bricolage-grotesque/500.css">
@@ -1232,6 +1233,7 @@ function catModal(id, presetBiz, presetGroup) {
       <label class="f">Belongs to<select id="c-owner"><option value="">Family</option>${bizList().map(b => `<option value="${b.id}" ${b.id === owner ? 'selected' : ''}>${esc(b.name)} (business)</option>`).join('')}</select></label>
       <label class="f" id="c-group-wrap" ${owner || c.type === 'income' ? 'hidden' : ''}>Group<select id="c-group">${FAMILY_GROUPS.map(g => `<option ${g === c.group ? 'selected' : ''}>${esc(g)}</option>`).join('')}</select></label>
       <label class="f">Forecast mode<select id="c-mode"><option value="budget" ${c.forecastMode!=='bill'?'selected':''}>Budget — retain remaining amount</option><option value="bill" ${c.forecastMode==='bill'?'selected':''}>Single bill — use actual</option></select></label>
+      <label class="f">Due day of the month<input id="c-due" type="number" min="1" max="31" inputmode="numeric" placeholder="Optional" value="${c.dueDay || ''}"></label>
       <label class="f full">Account<select id="c-acc">${C.accs.map(a => `<option value="${a.id}" ${a.id === c.account ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>
     </div>
     <div class="panel pad" style="background:var(--sunk)"><h3 style="margin-bottom:8px">Fill a fixed amount</h3><div class="form">
@@ -1360,6 +1362,7 @@ document.addEventListener('click', async ev => {
     const group = owner ? 'Business' : type === 'income' ? 'Income' : $('#c-group').value;
     const body = { ...(old || {}), name, type, group, business: owner || null, account: $('#c-acc').value, order: old?.order ?? 999, amounts: { ...(old?.amounts || {}) } };
     body.forecastMode=$('#c-mode').value;
+    const dueDay = parseInt($('#c-due').value, 10); if (dueDay >= 1 && dueDay <= 31) body.dueDay = dueDay;
     const fill = $('#c-fill').value.trim();
     if (fill !== '') {
       const v = num(fill), every = +$('#c-every').value, from = $('#c-from').value, to = $('#c-to').value;

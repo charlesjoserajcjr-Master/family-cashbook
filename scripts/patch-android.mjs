@@ -76,5 +76,6 @@ const manifestPath = "android/app/src/main/AndroidManifest.xml";
 let manifest = fs.readFileSync(manifestPath, "utf8");
 if (!/android:allowBackup="/.test(manifest)) manifest = manifest.replace("<application", '<application\n        android:allowBackup="false"');
 else manifest = manifest.replace(/android:allowBackup="[^"]*"/, 'android:allowBackup="false"');
+if (!manifest.includes("android.permission.POST_NOTIFICATIONS")) manifest = manifest.replace("</manifest>", '    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n</manifest>');
 fs.writeFileSync(manifestPath, manifest);
 console.log("Protection: device key added, Android backup off, screen protection " + (appId.endsWith(".preview") ? "off (preview)" : "on"));

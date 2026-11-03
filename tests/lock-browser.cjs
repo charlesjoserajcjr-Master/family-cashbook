@@ -128,6 +128,20 @@ const set = async (p, pin = PIN) => { await p.locator("#pin-new").fill(pin); awa
     await next.p.reload(); await next.p.locator("#pin-entry").fill(PIN); await next.p.locator("#pin-open").click();
     await next.p.locator("#lock-root").waitFor({ state: "detached" }); await next.p.getByText("Old savings").first().waitFor();
     assert.deepEqual(next.errors, []);
+    // Reminders: asked for in setup, scheduled without amounts, off again cleanly.
+    const rem = await fresh();
+    await rem.p.addInitScript(() => { window.__sent = []; window.CashbookNative = { LocalNotifications: { checkPermissions: async () => ({ display: "prompt" }), requestPermissions: async () => ({ display: "granted" }), getPending: async () => ({ notifications: [] }), cancel: async () => {}, schedule: async ({ notifications }) => { window.__sent.push(...notifications); } } }; });
+    await rem.p.reload();
+    await rem.p.getByRole("button", { name: "Start fresh", exact: true }).click(); await rem.p.locator("#tour-skip").click(); await set(rem.p); await rem.p.locator("#pin-got").check(); await rem.p.locator("#pin-finish").click();
+    await rem.p.locator("#ob-name").waitFor(); await rem.p.getByRole("button", { name: "Next: income & spending", exact: true }).click(); await rem.p.locator("#ob-expense").fill("5000"); await rem.p.getByRole("button", { name: "Create my plan", exact: true }).click();
+    await rem.p.getByRole("button", { name: "Continue", exact: true }).click();
+    await rem.p.getByRole("tab", { name: "More", exact: true }).click(); await rem.p.getByRole("button", { name: "Bill reminders", exact: true }).click();
+    await rem.p.getByRole("button", { name: "Household budget", exact: true }).click(); await rem.p.locator("#due-day").fill("28"); await rem.p.getByRole("button", { name: "Save", exact: true }).click();
+    await rem.p.getByText("Bills without a due day").waitFor({ state: "detached" });
+    await rem.p.getByRole("button", { name: "Turn on reminders", exact: true }).click(); await rem.p.getByText("Reminders are on.").first().waitFor();
+    await rem.p.waitForFunction(() => window.__sent.length > 0);
+    const sent = await rem.p.evaluate(() => window.__sent); assert.ok(sent.every((n) => n.title.startsWith("Household budget: due ") && !/5,?000/.test(n.title + n.body)));
+    await shot(rem.p, "8-reminders"); assert.deepEqual(rem.errors, []);
     console.log("PIN first run, unlock, recovery, settings, auto-lock and upgrade flows passed.");
   } finally { await browser.close(); server.close(); }
 })().catch((e) => { console.error(e); process.exitCode = 1; });
