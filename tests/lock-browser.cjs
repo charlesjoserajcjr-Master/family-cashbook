@@ -53,6 +53,11 @@ const set = async (p, pin = PIN) => { await p.locator("#pin-new").fill(pin); awa
     await p.getByRole("button", { name: "Hide", exact: true }).click();
     await p.getByText("Set up Family Money").waitFor({ state: "detached" });
     await p.getByRole("tab", { name: "More", exact: true }).click();
+    await p.getByRole("button", { name: "Setup guide & user manual", exact: true }).click();
+    await p.getByRole("tab", { name: "Home", exact: true }).click();
+    await p.getByText("Set up Family Money: 1 of 5 done").waitFor();
+    await p.getByRole("tab", { name: "More", exact: true }).click();
+    await p.getByRole("button", { name: "All tools", exact: true }).click().catch(() => {});
     await p.getByRole("button", { name: "Take the tour", exact: true }).click();
     assert.equal(await p.locator("#tour-step").textContent(), "1 of 6");
     for (let i = 0; i < 6; i++) await p.locator("#tour-next").click();

@@ -135,6 +135,8 @@
       ? btn("open", "Start")
       : btn("tool", "Start", `data-tool="${x.target}"`);
   function render() {
+    const flags = progress();
+    if (flags.hidden) save({ ...flags, hidden: false }); // opening the guide brings the Home card back
     const steps = checklist(A.state(), progress()),
       next = steps.find(open_),
       count = steps.filter((x) => !open_(x)).length;
