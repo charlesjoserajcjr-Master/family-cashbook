@@ -117,7 +117,7 @@ function missingDays(list){
  return list.length?'<h3>Bills without a due day</h3><p class="hint">These can\'t remind you until they have one.</p>'+list.map(c=>btn('due-edit',esc(c.name),'data-id="'+c.id+'"')).join(' '):'';
 }
 function importScreen(){
- return panel('Import a bank statement','<p>Use CSV with Date, Description, Amount (expenses negative), or Date, Description, Debit, Credit. Dates: YYYY-MM-DD or DD/MM/YYYY. Import up to 200 rows per batch. Every row is reviewed before saving.</p>'+
+ return panel('Import a bank statement','<p>Download your statement from your bank as a CSV file. Excel and PDF files need saving as CSV first. Most Indian bank column names and date formats work. You check every row before it is saved, up to 200 rows at a time.</p>'+
  select('Statement account','im-account',accountOpts())+'<label class="f">CSV file<input id="im-file" type="file" accept=".csv,text/csv"></label>'+btn('im-preview','Preview statement')+'<div id="im-preview"></div>');
 }
 function importOptions(type){
@@ -128,11 +128,11 @@ async function showImport(){
  const accountId=$('#im-account').value;importAccount=accountId;if(!accountId)throw Error('Add an account first.');
  const existing=new Set(Object.values(S().entries).map(e=>D.fingerprint({...e,accountId:e.accountId||S().categories[e.categoryId]?.account,type:S().categories[e.categoryId]?.type})));
  for(const doc of Object.values(S().transfers))for(const t of doc.items||[]){const x=t.actual;if(!x)continue;existing.add(D.fingerprint({date:x.date,amount:x.amount,accountId:x.from,type:'expense',note:t.ref||''}));existing.add(D.fingerprint({date:x.date,amount:x.amount,accountId:x.to,type:'income',note:t.ref||''}));}
- preview=D.importRows(await f.text());if(preview.length>200)throw Error('Split this statement into batches of at most 200 rows.');
+ preview=D.importRows(await f.text());const skippedRows=preview.skipped||0;if(preview.length>200)throw Error('Split this statement into batches of at most 200 rows.');
  const seen=new Set();
  preview=preview.map(r=>{const x={...r,accountId},fp=D.fingerprint(x),duplicate=existing.has(fp)||seen.has(fp);seen.add(fp);return {...x,duplicate,fp,recordId:id(),done:false};});
  $('#im-preview').innerHTML=rowsTable(['Include','Date','Description','Amount','Category / transfer'],preview.map((r,i)=>['<input aria-label="Include row '+(i+1)+'" type="checkbox" id="im-use-'+i+'" '+(!r.duplicate&&!A.locked(r.date.slice(0,7))?'checked':'')+' '+(A.locked(r.date.slice(0,7))?'disabled':'')+'>',esc(r.date),esc(r.note)+(r.duplicate?'<br><strong>Possible duplicate — excluded</strong>':''),fmt(r.amount)+' '+r.type,'<select aria-label="Category for row '+(i+1)+'" id="im-cat-'+i+'"><option value="">Choose…</option>'+importOptions(r.type)+'</select>']))+
- '<p>Transfers must be matched manually. A possible duplicate can be included only by explicitly selecting it.</p>'+btn('im-commit','Import selected rows');
+ (skippedRows?'<p class="hint">'+skippedRows+' rows were left out because they had no date or no amount, such as opening balances and totals.</p>':'')+'<p>Transfers must be matched manually. A possible duplicate can be included only by explicitly selecting it.</p>'+btn('im-commit','Import selected rows');
 }
 async function commitImport(){
  if($('#im-account').value!==importAccount)throw Error('Account changed. Preview the statement again.');
