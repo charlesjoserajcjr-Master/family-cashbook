@@ -28,3 +28,11 @@ test('reminders fall before each due day, skip paid bills and never carry an amo
  assert.equal(new Date(D.dueReminders({categories:{e:{name:'x',type:'expense',dueDay:31,amounts:{'2027-02':10}}},now:new Date(2027,0,31,12),before:0})[0].at).getDate(),28);
  assert.equal(D.dueReminders({categories,now,closedThrough:'2026-12'}).length,0);
 });
+const H=require('../www/handover.js');
+test('the handover lists everything, and goes stale when accounts change or a year passes',()=>{
+ const f={accounts:[{name:'SB',kind:'Savings',balance:100000,notes:'Nominee Asha'}],cards:[{name:'Visa',balance:-500,notes:''}],foreign:[],loans:[{name:'Car',outstanding:250000,emi:15000,dueDay:5,lastMonth:'Mar 2029'}],bills:[{name:'LIC',amount:2000,dueDay:12,account:'SB'}],income:[],assets:[{name:'Flat',type:'Property',value:5000000}],liabilities:[],businesses:[]};
+ const txt=JSON.stringify(H.sections(f,{contacts:'CA 123\nAgent 456',notes:'Papers in locker'}));
+ for(const t of ['SB (Savings): Rs 1,00,000. Nominee Asha','owed Rs 500','outstanding Rs 2,50,000','EMI Rs 15,000','Papers in locker','Agent 456','about Rs 50,00,000'])assert.ok(txt.includes(t),t);
+ const sig=H.signature(f),h={contacts:'x',where:'Drive',toldAt:1,pdfAt:1000,sig};
+ assert.equal(H.state(f,h,2000).status,'done');assert.equal(H.state({...f,accounts:[...f.accounts,{name:'New'}]},h,2000).status,'stale');assert.equal(H.state(f,h,1000+366*864e5).status,'stale');assert.equal(H.state(f,{},1).status,'open');
+});

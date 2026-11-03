@@ -17,5 +17,5 @@ contextBridge.exposeInMainWorld('cashbookDesktop', {
   info: () => ipcRenderer.invoke('data:info'),
   openFolder: () => ipcRenderer.invoke('data:open'),
   chooseFolder: () => ipcRenderer.invoke('data:choose'),
-  saveFile: (name, text) => ipcRenderer.invoke('file:save', { name, text }),
+  saveFile: (name, text, encoding) => ipcRenderer.invoke('file:save', { name, text, encoding }),
 });

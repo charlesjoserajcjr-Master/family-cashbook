@@ -124,13 +124,13 @@ test("setup steps follow real progress and asked-for extras, and skipping change
   const state = { accounts: { a: { name: "A" } }, categories: {}, entries: {}, fxEntries: {} };
   assert.equal(next(state), "accounts");
   assert.equal(next({ ...state, accounts: { a: {}, b: {} } }), "plan");
-  assert.deepEqual(Guide.checklist(state).map((s) => s.id), ["accounts", "plan", "entry", "backup"]);
+  assert.deepEqual(Guide.checklist(state).map((s) => s.id), ["accounts", "plan", "entry", "backup", "handover"]);
   const want = { cards: true, loans: true, foreign: true, business: true };
-  assert.deepEqual(Guide.checklist(state, { want }).map((s) => s.id), ["accounts", "cards", "plan", "loans", "foreign", "business", "entry", "backup"]);
+  assert.deepEqual(Guide.checklist(state, { want }).map((s) => s.id), ["accounts", "cards", "plan", "loans", "foreign", "business", "entry", "backup", "handover"]);
   assert.equal(next({ ...state, accounts: { a: {}, b: { kind: "Credit" } } }, { want: { cards: true } }), "plan");
   const skip = { accounts: true, plan: true, entry: true };
   assert.equal(next(state, { skip }), "backup");
   assert.equal(Object.keys(state.entries).length, 0);
-  assert.equal(next(state, { skip, backupVerified: true }), undefined);
+  assert.equal(next({ ...state, features: { handover: { pdfAt: 1, toldAt: 1 } } }, { skip, backupVerified: true }), undefined);
   assert.equal(Guide.checklist({ ...state, entries: { one: {} } }, { skip }).find((s) => s.id === "entry").skipped, false);
 });

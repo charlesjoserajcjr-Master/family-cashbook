@@ -64,10 +64,10 @@ ipcMain.handle('data:choose', async () => {
   writeCfg({ ...readCfg(), dataDir: dir });
   return { dir, reload: existing };
 });
-ipcMain.handle('file:save', async (e, { name, text }) => {
+ipcMain.handle('file:save', async (e, { name, text, encoding }) => {
   const r = await dialog.showSaveDialog(win, { defaultPath: path.join(app.getPath('documents'), name) });
   if (r.canceled || !r.filePath) return false;
-  fs.writeFileSync(r.filePath, text); return true;
+  fs.writeFileSync(r.filePath, encoding === 'base64' ? Buffer.from(text, 'base64') : text); return true;
 });
 
 let win = null;

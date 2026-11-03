@@ -35,10 +35,10 @@ const set = async (p, pin = PIN) => { await p.locator("#pin-new").fill(pin); awa
     await p.getByText("Your forecast is ready").waitFor();
     await p.getByText("your cash is lowest in").waitFor(); await shot(p, "5-forecast");
     await p.locator("#want-loans").check(); await p.getByRole("button", { name: "Continue", exact: true }).click();
-    await p.getByText("Set up Family Money: 0 of 5 done").waitFor(); await shot(p, "6-home");
+    await p.getByText("Set up Family Money: 0 of 6 done").waitFor(); await shot(p, "6-home");
     // Skip counts, adding an account does not reset progress, and a step ticks itself.
     await p.getByRole("button", { name: "Skip", exact: true }).click();
-    await p.getByText("Set up Family Money: 1 of 5 done").waitFor();
+    await p.getByText("Set up Family Money: 1 of 6 done").waitFor();
     await p.getByText("Add your regular income and bills").waitFor();
     await p.getByRole("button", { name: "Start", exact: true }).click();
     await p.getByText("This is your monthly plan").waitFor();
@@ -49,13 +49,13 @@ const set = async (p, pin = PIN) => { await p.locator("#pin-new").fill(pin); awa
     await p.getByRole("button", { name: "Accounts & backup", exact: true }).click();
     await p.locator('[data-act="addacc"]').click();
     await p.getByRole("tab", { name: "Home", exact: true }).click();
-    await p.getByText("Set up Family Money: 1 of 5 done").waitFor();
+    await p.getByText("Set up Family Money: 1 of 6 done").waitFor();
     await p.getByRole("button", { name: "Hide", exact: true }).click();
     await p.getByText("Set up Family Money").waitFor({ state: "detached" });
     await p.getByRole("tab", { name: "More", exact: true }).click();
     await p.getByRole("button", { name: "Setup guide & user manual", exact: true }).click();
     await p.getByRole("tab", { name: "Home", exact: true }).click();
-    await p.getByText("Set up Family Money: 1 of 5 done").waitFor();
+    await p.getByText("Set up Family Money: 1 of 6 done").waitFor();
     await p.getByRole("tab", { name: "More", exact: true }).click();
     await p.getByRole("button", { name: "All tools", exact: true }).click().catch(() => {});
     await p.getByRole("button", { name: "Take the tour", exact: true }).click();
@@ -139,6 +139,23 @@ const set = async (p, pin = PIN) => { await p.locator("#pin-new").fill(pin); awa
     await fx.p.locator('#fx-warning [data-feature="currency"]').click();
     await fx.p.getByText("Multi-currency accounts").first().waitFor();
     assert.deepEqual(fx.errors, []);
+    // Family handover: a real PDF with the accounts and steps, no recovery code, and the steps tick.
+    const ho = await fresh();
+    await ho.c.addInitScript(() => { window.CASHBOOK_TEST_SKIP_PIN = true; });
+    await ho.p.evaluate(() => { localStorage.setItem("family-cashbook-lock.json", ""); localStorage.setItem("family-cashbook-data.json", JSON.stringify({ app: "family-cashbook", version: 2, docs: { "settings/main": { start: "2026-01", end: "2027-12", currency: "INR" }, "accounts/a": { name: "Home savings", opening: 900, min: 0, kind: "Savings", order: 0, notes: "HDFC Anna Nagar" }, "accounts/c": { name: "Visa card", opening: -500, min: 0, kind: "Credit", order: 1 }, "categories/e": { name: "Car EMI", type: "expense", group: "Loans & EMIs", account: "a", amounts: { "2026-12": 15000 }, dueDay: 5 }, "categories/b": { name: "Electricity", type: "expense", group: "Household", account: "a", amounts: { "2026-12": 2000 } } }, times: {}, tomb: {}, fieldMeta: {}, conflicts: {} })); });
+    await ho.p.reload(); await ho.p.getByRole("tab", { name: "More", exact: true }).click();
+    await ho.p.getByRole("button", { name: "Family handover", exact: true }).click();
+    await ho.p.locator("#ho-contacts").fill("Bank manager 044 0000 0000");
+    await ho.p.locator("#ho-where").fill("My Google Drive");
+    await ho.p.locator("#ho-who").fill("My sister Asha");
+    await shot(ho.p, "11-handover");
+    const dl = ho.p.waitForEvent("download");
+    await ho.p.getByRole("button", { name: "Make the PDF", exact: true }).click();
+    const file = await (await dl).path(), pdf = fs.readFileSync(file).toString("latin1");
+    for (const t of ["If something happens to me", "Home savings", "HDFC Anna Nagar", "Visa card", "Car EMI", "Electricity", "Bank manager", "My Google Drive", "Recovery code"]) assert.ok(pdf.includes(t), t);
+    fs.copyFileSync(file, "test-artifacts/family-money-handover.pdf");
+    await ho.p.locator("#ho-told").check(); await ho.p.getByText("Your family handover is complete").waitFor();
+    assert.deepEqual(ho.errors, []);
     // Plus: free tools stay open, a locked tool offers the trial, buying unlocks it, and a lapse keeps records.
     const buy = await fresh();
     await buy.c.addInitScript(() => { window.CASHBOOK_TEST_SKIP_PIN = true; const info = (on) => ({ requestDate: new Date().toISOString(), entitlements: { active: on ? { money_plus: { expirationDate: new Date(Date.now() + 7 * 864e5).toISOString() } } : {} } }); window.__plusOn = false; window.CASHBOOK_TEST_PURCHASES = { configure: async () => {}, getCustomerInfo: async () => ({ customerInfo: info(window.__plusOn) }), getOfferings: async () => ({ current: { availablePackages: [{ product: { priceString: "₹799.00", introPrice: { price: 0, periodUnit: "DAY", periodNumberOfUnits: 7 } } }] } }), purchasePackage: async () => { window.__plusOn = true; return { customerInfo: info(true) }; }, restorePurchases: async () => ({ customerInfo: info(window.__plusOn) }) }; });

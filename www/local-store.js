@@ -371,6 +371,12 @@
     };
   })();
 
+  async function exportBinary(name, base64, mime) {
+    if (DESK) return (await DESK.saveFile(name, base64, 'base64')) ? 'saved' : 'cancelled';
+    const Share = Plug('Share');
+    if (FS && Share) { const w = await FS.writeFile({ path: name, directory: 'CACHE', data: base64 }); try { await hold(() => Share.share({ title: name, url: w.uri, dialogTitle: 'Save or print' })); } finally { try { await FS.deleteFile({ path: name, directory: 'CACHE' }); } catch {} } return 'shared'; }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([Uint8Array.from(atob(base64), c => c.charCodeAt(0))], { type: mime })); a.download = name; a.click(); return 'downloaded';
+  }
   async function exportFile(name, text, mime) {
     if (DESK) return DESK.saveFile(name, text);
     const Share = Plug('Share');
@@ -453,6 +459,6 @@
     if(!DESK&&navigator.canShare&&navigator.share){const file=new File([text],name,{type:mime});if(navigator.canShare({files:[file]})){await navigator.share({files:[file],title:'Family Money encrypted file'});return 'shared';}}
     return exportFile(name,text,mime);
   }
-  window.__cashbookLocal = {readDeviceVault,writeDeviceVault,mergePeer,inspectBackup,shareFile,getSnapshot:async()=>{await ready;if(lockedEnvelope)throw Error('Unlock first.');return clone(snapshot());}, exportSource,get readError(){return loadError;},unlock,encryptLedger,lock,pinUnlock,setPin,protect,replaceCode,checkPin,checkCurrentPin,newCode,codeId,setAutolock,lockInfo,hold,holdFor,onHold,hasRecords:()=>docs.size>0,get locked(){return !!lockedEnvelope;},get encrypted(){return !!(lockedEnvelope||ledgerPassword);},flush:async()=>{await saveQueue;if(saveError)throw saveError;}, retrySave:()=>persist(), get saveError(){return saveError||loadError;}, get conflicts(){return conflicts;}, clearConflict:async id=>{delete conflicts[id];await persist();}, exportData, importData, exportFile, drive: Drive, pwa, desktop };
+  window.__cashbookLocal = {readDeviceVault,writeDeviceVault,mergePeer,inspectBackup,shareFile,getSnapshot:async()=>{await ready;if(lockedEnvelope)throw Error('Unlock first.');return clone(snapshot());}, exportSource,get readError(){return loadError;},exportBinary,unlock,encryptLedger,lock,pinUnlock,setPin,protect,replaceCode,checkPin,checkCurrentPin,newCode,codeId,setAutolock,lockInfo,hold,holdFor,onHold,hasRecords:()=>docs.size>0,get locked(){return !!lockedEnvelope;},get encrypted(){return !!(lockedEnvelope||ledgerPassword);},flush:async()=>{await saveQueue;if(saveError)throw saveError;}, retrySave:()=>persist(), get saveError(){return saveError||loadError;}, get conflicts(){return conflicts;}, clearConflict:async id=>{delete conflicts[id];await persist();}, exportData, importData, exportFile, drive: Drive, pwa, desktop };
   window.claude = { use: async name => name === 'db' ? db : name === 'user' ? user : null };
 })();

@@ -35,6 +35,7 @@ img{max-width:100%}
 <script src="vendor/qr.js"></script>
 <script src="wifi-ui.js"></script>
 <script src="companion-ui.js"></script>
+<script src="handover.js"></script>
 <script src="plan.js"></script>
 <script src="reminders.js"></script>
 <script src="guide.js"></script>
@@ -1556,7 +1557,24 @@ document.addEventListener('change', async ev => {
 });
 window.addEventListener('resize', () => { if (!C) return; if (tab === 'overview') drawChart($('#chart')); if (tab === 'networth') render(); });
 
-CashbookUI.attach({state:()=>S,computed:()=>C,actualComputed:()=>compute(true),refresh:schedule,quickEntry:()=>{txModal('expense');const amount=$('#e-amt');if(amount){amount.value='';amount.focus();}},db:()=>db,month:()=>selMonth,uid:()=>uid||'',canWrite:()=>canWrite,locked,modal:openModal,close:closeModal,toast,go:t=>{tab=t;render();window.scrollTo(0,0);}});
+function handoverFacts() {
+  const A = compute(true), m = A.cur, bal = a => A.rows[a.id]?.[m]?.end ?? (+a.opening || 0);
+  const monthly = c => { const v = planVal(c, C.cur) || C.ms.map(x => planVal(c, x)).find(x => x > 0) || 0; return v; };
+  const fx = C.fxByMonth?.[C.cur]?.balances || {};
+  const cats = catList().filter(c => monthly(c) > 0 && !isBiz(c)), row = c => ({ name: c.name, amount: monthly(c), dueDay: c.dueDay || 0, account: accName(c.account) });
+  return {
+    accounts: C.accs.filter(a => a.kind !== 'Credit').map(a => ({ name: a.name, kind: a.kind || 'Savings', balance: bal(a), notes: a.notes || '' })),
+    cards: C.accs.filter(a => a.kind === 'Credit').map(a => ({ name: a.name, balance: bal(a), notes: a.notes || '' })),
+    foreign: Object.entries(S.fxAccounts || {}).map(([id, a]) => ({ name: a.name, currency: a.currency, balance: fx[id] ?? a.opening ?? 0 })),
+    loans: catList().filter(c => c.group === 'Loans & EMIs').map(loanInfo).map(x => ({ name: x.c.name, outstanding: x.has ? x.now : null, emi: x.emi || x.sched || 0, dueDay: x.c.dueDay || 0, lastMonth: x.end ? mlabel(x.end) : '' })),
+    bills: cats.filter(c => c.type !== 'income' && c.group !== 'Loans & EMIs').map(row),
+    income: cats.filter(c => c.type === 'income').map(row),
+    assets: holdList('asset').map(h => ({ name: h.name, type: h.type, value: holdingValue(h, C.cur) })),
+    liabilities: holdList('liability').map(h => ({ name: h.name, type: h.type, value: holdingValue(h, C.cur) })),
+    businesses: bizList().map(b => b.name)
+  };
+}
+CashbookUI.attach({handoverFacts,state:()=>S,computed:()=>C,actualComputed:()=>compute(true),refresh:schedule,quickEntry:()=>{txModal('expense');const amount=$('#e-amt');if(amount){amount.value='';amount.focus();}},db:()=>db,month:()=>selMonth,uid:()=>uid||'',canWrite:()=>canWrite,locked,modal:openModal,close:closeModal,toast,go:t=>{tab=t;render();window.scrollTo(0,0);}});
 window.addEventListener('cashbook-unlock',schedule);
 window.addEventListener('cashbook-wifi',updateSync);
 // ---------- boot ----------
