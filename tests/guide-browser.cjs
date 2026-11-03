@@ -132,7 +132,7 @@ const server = http.createServer((req, res) => {
         .last()
         .click();
       await page
-        .getByText("Step 2 of 4: Add your regular income and bills", {
+        .getByText("Step 2 of 5: Add your regular income and bills", {
           exact: true,
         })
         .waitFor();
@@ -144,7 +144,7 @@ const server = http.createServer((req, res) => {
         .getByRole("button", { name: "See all steps", exact: true })
         .click();
       await page
-        .getByText("Step 2 of 4: Add your regular income and bills", {
+        .getByText("Step 2 of 5: Add your regular income and bills", {
           exact: true,
         })
         .waitFor();

@@ -36,6 +36,7 @@
       flags.canRemind && { id: "remind", title: "Turn on bill and EMI reminders", sub: "Add a due day to each bill, and your phone tells you before it falls due", done: !!flags.remindOn, target: "reminders" },
       { id: "entry", title: "Record your first transaction", sub: "Something you spent or received today", done: entries > 0, target: "entry" },
       { id: "backup", title: "Save a backup and check it opens", sub: "This file and your recovery code bring everything back", done: !!flags.backupVerified, target: "backup" },
+      { id: "handover", title: "Do the Family handover", sub: "So your family knows what you have and can reach it without you", done: !!(state.features?.handover?.pdfAt && state.features?.handover?.toldAt), target: "handover" },
     ]
       .filter(Boolean)
       .map((x) => ({ ...x, skipped: !x.done && !!skip[x.id] }));
@@ -341,7 +342,7 @@
       }
       A.close();
       if (tool === "entry") A.quickEntry();
-      else if (tool === "card" || tool === "contract" || tool === "reminders") await root.CashbookUI.run(tool);
+      else if (tool === "card" || tool === "contract" || tool === "reminders" || tool === "business" || tool === "handover") await root.CashbookUI.run(tool);
       else A.go(tool);
       return;
     }

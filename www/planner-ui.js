@@ -45,18 +45,19 @@ function afterRender(tab){
  else if(tab==='month'&&!A.locked(currentMonth()))el.innerHTML=btn('close-month','Review and close '+currentMonth())+btn('complete','Complete a category');
  else if(tab==='loans')el.innerHTML=btn('prepay','Compare prepayments');
  el.innerHTML=(window.CashbookGuide?.tip(tab)||'')+el.innerHTML;
+ if(['overview','networth'].includes(tab)&&C().fxMissing?.length)el.innerHTML='<div class="panel pad guide-banner" id="fx-warning" style="background:var(--warn-soft)"><p style="margin:0 0 4px"><b>! Foreign accounts are left out of these totals.</b></p><p class="hint">Add an exchange rate for: '+[...new Set(C().fxMissing.map(s=>s.split(' on ')[0]))].map(esc).join(', ')+'</p>'+btn('currency','Add exchange rates')+'</div>'+el.innerHTML;
  if(el.innerHTML)$('#view').prepend(el);
 }
 function menu(){
- const paid=window.CASHBOOK_CONFIG?.billing?.purchasesEnabled||window.CASHBOOK_TEST_SKIP_PIN;
+ const paid=window.CashbookPlan?.selling||window.CASHBOOK_TEST_SKIP_PIN;
  const groups=[
  ['Everyday',[['month','Monthly review'],['calendar','Bills calendar'],['reminders','Bill reminders'],['import','Statement import']]],
  ['Planning',[['goals','Savings goals'],['scenarios','What-if scenarios'],['contract','Contract income & currency conversion'],['business','Businesses']]],
  ['Loans and wealth',[['loans','Loans & EMIs'],['prepay','Loan prepayment'],['networth','Net worth'],['card','Add credit card'],['currency','Multi-currency accounts & remittances']]],
  ['Family and devices',[['companion','Phone & laptop sync'],['family','Share with family'],['conflicts','Sync history']]],
- ['Safety and help',[['security','PIN, recovery code and lock'],['setup','Accounts & backup'],['guide','Setup guide & user manual'],['tour','Take the tour']]],
- ...(paid?[['Plans',[['plans','Plans & family access'],['billing','Purchases & restore']]]]:[])];
- return panel('More',groups.map(([h,items])=>'<h3>'+h+'</h3><div class="tool-grid">'+items.map(([k,v])=>btn(k,v)).join('')+'</div>').join('')).replace(btn('menu','All tools'),'');
+ ['Safety and help',[['handover','Family handover'],['security','PIN, recovery code and lock'],['setup','Accounts & backup'],['guide','Setup guide & user manual'],['tour','Take the tour']]],
+ ...(paid?[['Plans',[['plans',window.CashbookPlan?.NAME||'Plans'],...(window.CASHBOOK_TEST_SKIP_PIN?[['billing','Purchases & restore']]:[])]]]:[])];
+ return panel('More',groups.map(([h,items])=>'<h3>'+h+'</h3><div class="tool-grid">'+items.map(([k,v])=>btn(k,v+(window.CashbookPlan?.label(k)&&!window.CashbookPlan.has()?' · Plus':''))).join('')+'</div>').join('')).replace(btn('menu','All tools'),'');
 }
 function scenarios(){
  const saved=features('scenario');
@@ -179,17 +180,18 @@ function conflicts(){
  (list.length?list.map(([key,c],i)=>'<details class="panel pad"><summary>'+esc(c.path)+' · '+esc(c.field)+'</summary><pre style="white-space:pre-wrap">'+esc(JSON.stringify({local:c.local,remote:c.remote},null,2))+'</pre>'+btn('conflict-dismiss','Reviewed','data-key="'+esc(key)+'"')+'</details>').join(''):'<p>No conflicting field history recorded.</p>'));
 }
 function plans(){
- return panel('Plans and family access','<p><b>Preview release — all current tools are available.</b> No payment will be collected in this build.</p>'+rowsTable(['Proposed plan','Price','Planned package'],[['Free','₹0','Manual tracking, monthly review, backups and exports'],['Plus','₹999/year or ₹129/month','Extended planning, scenarios, imports, business and net-worth tools']])+
- '<p>Share with family uses separate member keys, signed grants and recipient-scoped files. The owner reviews editor proposals; viewers cannot submit changes. Current personal Drive sync is separate and still uses the same Google account. Do not share your Google password.</p><p>Existing records and exports remain available. Purchase and restore adapters with server verification are available in Purchases & restore. Merchant/store accounts and real sandbox validation are still required before activation.</p>');
+ const P=window.CashbookPlan,on=P.has();
+ return panel(P.NAME,(on?'<p><b>'+P.NAME+' is active on this device.</b></p>':'<p>₹799 a year. The store shows your final price before you pay.</p><button class="btn primary" data-plan="open">See the plan</button>')+'<h3>Free</h3><p>Accounts, credit cards, transactions, monthly plan and forecast, monthly review, loans and EMIs, bill reminders, savings goals, net worth, PIN, backups and exports.</p><h3>'+P.NAME+'</h3><p>Bank statement import, Wi-Fi phone and laptop sync, sharing with family, what-if scenarios, loan prepayment comparison, businesses, foreign accounts, remittances and contract income.</p><p class="hint">If a plan ends, you keep all your records.</p>');
 }
 function more(){
  if(screen==='import'&&importDirty&&$('#im-file'))return;
  const active=$('#view'),results={};if(active?.dataset.screen===screen)for(const key of ['pp-result','sc-result']){const el=document.getElementById(key);if(el)results[key]=el.innerHTML;}if(active&&active.dataset.screen===screen){const values={};for(const e of active.querySelectorAll('input[id],select[id],textarea[id]'))if(e.type!=='file'&&e.type!=='password')values[e.id]={value:e.value,checked:e.checked};drafts.set(screen,values);}
- const views={menu,guide:()=>CashbookGuide.render(),companion:()=>CashbookCompanion.render(),scenarios,goals,prepay,calendar,import:importScreen,reminders,contract,security,conflicts,plans,family:()=>CashbookFamilyUI.render(),currency:()=>CashbookCurrencyUI.render(),billing:()=>CashbookBillingUI.render()};$('#view').innerHTML=(views[screen]||menu)();$('#view').dataset.screen=screen;for(const [key,value]of Object.entries(drafts.get(screen)||{})){const e=document.getElementById(key);if(e){e.value=value.value;e.checked=value.checked;}}for(const [key,html]of Object.entries(results)){const el=document.getElementById(key);if(el)el.innerHTML=html;}}
+ const views={menu,guide:()=>CashbookGuide.render(),companion:()=>CashbookCompanion.render(),scenarios,goals,prepay,calendar,import:importScreen,reminders,handover:()=>CashbookHandover.render(),contract,security,conflicts,plans,family:()=>CashbookFamilyUI.render(),currency:()=>CashbookCurrencyUI.render(),billing:()=>CashbookBillingUI.render()};$('#view').innerHTML=(views[screen]||menu)();$('#view').dataset.screen=screen;for(const [key,value]of Object.entries(drafts.get(screen)||{})){const e=document.getElementById(key);if(e){e.value=value.value;e.checked=value.checked;}}for(const [key,html]of Object.entries(results)){const el=document.getElementById(key);if(el)el.innerHTML=html;}}
 function onboard(){CashbookGuide.tour(()=>CashbookLock.protect(()=>CashbookGuide.fresh(),{cancel:()=>A.go('overview')}));}
 
 async function action(t){
  const a=t.dataset.feature;
+ if(window.CashbookPlan?.allow(a)===false)return;
  if(a==='source-export'){await window.__cashbookLocal.exportSource();A.toast('Source exported. You can now restore a verified backup.');return;}
  if(a==='recover-restore'){const f=$('#recover-file').files[0];if(!f)throw Error('Choose a backup.');if(!confirm('Replace the unreadable records with this backup? Export the original source first.'))return;await window.__cashbookLocal.importData(await f.text(),$('#recover-pass').value);location.reload();return;}
  if(a==='unlock'){await window.__cashbookLocal.unlock($('#unlock-pass').value);$('#unlock-pass')?.blur();return;}
@@ -203,7 +205,7 @@ async function action(t){
  if(a==='cancel'){A.close();return;}
  if(['month','loans','networth','business','setup'].includes(a)){A.go(a);return;}
  if(a==='quick-entry'){A.quickEntry();return;}
- if(['guide','companion','menu','scenarios','goals','prepay','calendar','import','reminders','contract','security','conflicts','plans','family','currency','billing'].includes(a)){navigate(a);return;}
+ if(['guide','companion','menu','scenarios','goals','prepay','calendar','import','reminders','handover','contract','security','conflicts','plans','family','currency','billing'].includes(a)){navigate(a);return;}
  if(a==='sc-calc'||a==='sc-save'){const x=scenarioInput();scenarioResult(x);if(a==='sc-save'){await save('features/'+id(),{...x,type:'scenario'});A.toast('Scenario saved.');}return;}
  if(a==='sc-load'){const x=S().features[t.dataset.id];for(const [key,v]of Object.entries({'name':x.name,'from':x.from,'to':x.to,'income':(x.incomeFactor-1)*100,'expense':(x.expenseFactor-1)*100,'extra':x.monthlyExtra,'once':x.oneOff,'month':x.oneOffMonth}))$('#sc-'+key).value=v;scenarioResult(x);return;}
  if(a==='goal-new'||a==='goal-edit'){goalModal(S().features[t.dataset.id]);return;}
@@ -285,5 +287,5 @@ document.addEventListener('change',e=>{if(e.target.id==='im-file')importDirty=tr
 function recoveryScreen(){
  $('#view').innerHTML=panel('Your saved records could not be read','<p>Editing is blocked to protect the original data. Export the unreadable source first, then restore a known backup. Nothing is overwritten until the backup validates.</p>'+btn('source-export','Export original source')+'<label class="f">Verified backup<input type="file" id="recover-file" accept=".json"></label>'+field('Passphrase, for encrypted backups','recover-pass','password')+btn('recover-restore','Restore backup'));$('#fab').hidden=true;
 }
-window.CashbookUI={run:k=>action({dataset:{feature:k}}),toast:m=>A.toast(m),refresh:()=>A.refresh(),reset:()=>{screen="menu";},recoveryScreen,attach:api=>{A=api;window.CashbookReminders?.attach(api);window.CashbookFamilyUI?.attach(api);window.CashbookCurrencyUI?.attach(api);window.CashbookBillingUI?.attach(api);window.CashbookCompanion?.attach(api);window.CashbookGuide?.attach(api);},get busy(){return operations>0||!!window.CashbookGuide?.busy||!!window.CashbookCompanion?.busy||!!window.CashbookFamilyUI?.busy||!!window.CashbookCurrencyUI?.busy||!!window.CashbookBillingUI?.busy;},afterRender,more,onboard,lockScreen};
+window.CashbookUI={run:k=>action({dataset:{feature:k}}),toast:m=>A.toast(m),refresh:()=>A.refresh(),reset:()=>{screen="menu";},recoveryScreen,attach:api=>{A=api;window.CashbookHandover?.attach(api);window.CashbookPlan?.attach(api);window.CashbookReminders?.attach(api);window.CashbookFamilyUI?.attach(api);window.CashbookCurrencyUI?.attach(api);window.CashbookBillingUI?.attach(api);window.CashbookCompanion?.attach(api);window.CashbookGuide?.attach(api);},get busy(){return operations>0||!!window.CashbookGuide?.busy||!!window.CashbookCompanion?.busy||!!window.CashbookFamilyUI?.busy||!!window.CashbookCurrencyUI?.busy||!!window.CashbookBillingUI?.busy;},afterRender,more,onboard,lockScreen};
 })();

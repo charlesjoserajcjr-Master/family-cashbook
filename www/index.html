@@ -35,6 +35,8 @@ img{max-width:100%}
 <script src="vendor/qr.js"></script>
 <script src="wifi-ui.js"></script>
 <script src="companion-ui.js"></script>
+<script src="handover.js"></script>
+<script src="plan.js"></script>
 <script src="reminders.js"></script>
 <script src="guide.js"></script>
 <script src="planner-ui.js"></script>
@@ -448,7 +450,6 @@ function spark(accId) {
 }
 
 function overview() {
- if(C.fxMissing.length){$('#view').innerHTML='<section class="section"><div class="panel pad"><h2>Exchange rates needed</h2><p>Foreign accounts need an exchange rate before they can be added to your totals. Add the rates listed below.</p><p>'+C.fxMissing.map(esc).join(', ')+'</p><button class="btn" data-feature="currency">Open currency accounts</button></div></section>';return;}
   const cur = C.cur, last = C.ms[C.ms.length - 1];
   const nowTot = C.total[cur] ?? 0;
   const ahead = C.ms.filter(m => m >= cur);
@@ -1066,7 +1067,7 @@ function netWorthAt(m) {
   return { banks, assets, loans, other, totalA: banks + assets, totalL: loans + other, net: banks + assets - loans - other };
 }
 function networth() {
- if(C.fxMissing.length)return overview();
+ 
   const m = selMonth, cur = C.cur, first = C.ms[0], last = C.ms[C.ms.length - 1];
   const nw = netWorthAt(m), start = netWorthAt(first), end = netWorthAt(last);
   const series = C.ms.map(x => ({ m: x, v: netWorthAt(x).net }));
@@ -1327,7 +1328,7 @@ document.addEventListener('click', async ev => {
   }
   if (a === 'delentry') { if (!confirmTwice(t, 'e' + t.dataset.id)) return; return write(() => db.doc('entries/' + t.dataset.id).delete(), 'Entry deleted'); }
   if (a === 'editcat') return catModal(t.dataset.cat);
-  if (a === 'companion') return CashbookCompanion.open();
+  if (a === 'companion') return window.CashbookPlan?.allow('companion') === false ? undefined : CashbookCompanion.open();
   if (a === 'drive-connect' || a === 'drive-sync') {
     const D = window.__cashbookLocal?.drive; if (!D) return;
     if(!window.__cashbookLocal.encrypted)return CashbookCompanion.open();
@@ -1344,7 +1345,7 @@ document.addEventListener('click', async ev => {
   if (a === 'desk-choose') { const r = await window.__cashbookLocal.desktop.chooseFolder(); if (r) { toast(r.reload ? 'Using the records already in that folder.' : 'Your records now save to the new folder.'); render(); } return; }
   if (a === 'backup') { try { await window.__cashbookLocal.exportData(); } catch (e) { if (!/cancel/i.test(e?.message || '')) toast('Could not save the backup: ' + (e?.message || e)); } return; }
   if (a === 'newcat') return catModal(null, t.dataset.biz);
-  if (a === 'newbiz') return bizModal(null);
+  if (a === 'newbiz') return window.CashbookPlan?.has() === false ? CashbookPlan.show('Adding a business') : bizModal(null);
   if (a === 'editbiz') return bizModal(t.dataset.id);
   if (a === 'savebiz') {
     const name = $('#b-name').value.trim(); if (!name) return toast('Give the business a name.');
@@ -1556,7 +1557,24 @@ document.addEventListener('change', async ev => {
 });
 window.addEventListener('resize', () => { if (!C) return; if (tab === 'overview') drawChart($('#chart')); if (tab === 'networth') render(); });
 
-CashbookUI.attach({state:()=>S,computed:()=>C,actualComputed:()=>compute(true),refresh:schedule,quickEntry:()=>{txModal('expense');const amount=$('#e-amt');if(amount){amount.value='';amount.focus();}},db:()=>db,month:()=>selMonth,uid:()=>uid||'',canWrite:()=>canWrite,locked,modal:openModal,close:closeModal,toast,go:t=>{tab=t;render();window.scrollTo(0,0);}});
+function handoverFacts() {
+  const A = compute(true), m = A.cur, bal = a => A.rows[a.id]?.[m]?.end ?? (+a.opening || 0);
+  const monthly = c => { const v = planVal(c, C.cur) || C.ms.map(x => planVal(c, x)).find(x => x > 0) || 0; return v; };
+  const fx = C.fxByMonth?.[C.cur]?.balances || {};
+  const cats = catList().filter(c => monthly(c) > 0 && !isBiz(c)), row = c => ({ name: c.name, amount: monthly(c), dueDay: c.dueDay || 0, account: accName(c.account) });
+  return {
+    accounts: C.accs.filter(a => a.kind !== 'Credit').map(a => ({ name: a.name, kind: a.kind || 'Savings', balance: bal(a), notes: a.notes || '' })),
+    cards: C.accs.filter(a => a.kind === 'Credit').map(a => ({ name: a.name, balance: bal(a), notes: a.notes || '' })),
+    foreign: Object.entries(S.fxAccounts || {}).map(([id, a]) => ({ name: a.name, currency: a.currency, balance: fx[id] ?? a.opening ?? 0 })),
+    loans: catList().filter(c => c.group === 'Loans & EMIs').map(loanInfo).map(x => ({ name: x.c.name, outstanding: x.has ? x.now : null, emi: x.emi || x.sched || 0, dueDay: x.c.dueDay || 0, lastMonth: x.end ? mlabel(x.end) : '' })),
+    bills: cats.filter(c => c.type !== 'income' && c.group !== 'Loans & EMIs').map(row),
+    income: cats.filter(c => c.type === 'income').map(row),
+    assets: holdList('asset').map(h => ({ name: h.name, type: h.type, value: holdingValue(h, C.cur) })),
+    liabilities: holdList('liability').map(h => ({ name: h.name, type: h.type, value: holdingValue(h, C.cur) })),
+    businesses: bizList().map(b => b.name)
+  };
+}
+CashbookUI.attach({handoverFacts,state:()=>S,computed:()=>C,actualComputed:()=>compute(true),refresh:schedule,quickEntry:()=>{txModal('expense');const amount=$('#e-amt');if(amount){amount.value='';amount.focus();}},db:()=>db,month:()=>selMonth,uid:()=>uid||'',canWrite:()=>canWrite,locked,modal:openModal,close:closeModal,toast,go:t=>{tab=t;render();window.scrollTo(0,0);}});
 window.addEventListener('cashbook-unlock',schedule);
 window.addEventListener('cashbook-wifi',updateSync);
 // ---------- boot ----------
