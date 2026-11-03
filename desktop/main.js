@@ -21,7 +21,10 @@ const readCfg = () => { try { return JSON.parse(fs.readFileSync(cfgFile(), 'utf8
 const writeCfg = c => { fs.mkdirSync(path.dirname(cfgFile()), { recursive: true }); fs.writeFileSync(cfgFile(), JSON.stringify(c, null, 1)); };
 const testRoot=process.env.CASHBOOK_TEST_MODE==='1'&&!app.isPackaged?process.env.CASHBOOK_TEST_DATA_DIR:null;
 if(testRoot){fs.mkdirSync(path.join(path.resolve(testRoot),'settings'),{recursive:true});app.setPath('userData',path.join(path.resolve(testRoot),'settings'));}
-const dataDir = () => testRoot?path.join(path.resolve(testRoot),'ledger'):readCfg().dataDir || path.join(app.getPath('documents'), app.getName()==='Family Cashbook Preview'?'Family Cashbook Preview':'Family Cashbook');
+// The app's display name changed, but its folders must not: existing data and the PIN record live there.
+const FOLDER = app.getName().includes('Preview') ? 'Family Cashbook Preview' : 'Family Cashbook';
+if (!testRoot) app.setPath('userData', path.join(app.getPath('appData'), FOLDER));
+const dataDir = () => testRoot?path.join(path.resolve(testRoot),'ledger'):readCfg().dataDir || path.join(app.getPath('documents'), FOLDER);
 const dataFile = (dir = dataDir()) => path.join(dir, 'family-cashbook-data.json');
 
 function safeWrite(file, text) {
@@ -50,7 +53,7 @@ ipcMain.handle('key:unwrap', (e, data) => safeStorage.decryptString(Buffer.from(
 ipcMain.handle('data:info', () => ({ dir: dataDir(), file: dataFile(), backups: path.join(dataDir(), 'Backups') }));
 ipcMain.handle('data:open', () => shell.openPath(dataDir()));
 ipcMain.handle('data:choose', async () => {
-  const r = await dialog.showOpenDialog(win, { title: 'Choose where to keep your Family Cashbook data', properties: ['openDirectory', 'createDirectory'], defaultPath: dataDir() });
+  const r = await dialog.showOpenDialog(win, { title: 'Choose where to keep your Family Money records', properties: ['openDirectory', 'createDirectory'], defaultPath: dataDir() });
   if (r.canceled || !r.filePaths[0]) return null;
   const dir = r.filePaths[0], from = dataFile(), to = dataFile(dir);
   if (dir === dataDir()) return { dir, reload: false };

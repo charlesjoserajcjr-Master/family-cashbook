@@ -21,7 +21,7 @@
   let fieldMeta = {}, conflicts = {}, loadError = null, saveError = null;
   let deviceId=crypto.randomUUID();try{deviceId=localStorage.getItem('fcb-device')||deviceId;localStorage.setItem('fcb-device',deviceId);}catch{}
   let lockRecord=null, ledgerPassword=null, lockedEnvelope=null, pendingWrites=0, generation=0,rawSource=null,sourcePreserved=false;
-  const assertWritable=()=>{if(loadError)throw Error('Saved ledger could not be read. Preserve the source file and restore a backup.');if(lockedEnvelope)throw Error('Unlock the ledger first.');};
+  const assertWritable=()=>{if(loadError)throw Error('Your saved records could not be read. Keep the original file and restore a backup.');if(lockedEnvelope)throw Error('Unlock the app first.');};
   function revision(){let max=Date.now();for(const t of [...times.values(),...tomb.values()])max=Math.max(max,t+1);for(const fields of Object.values(fieldMeta))for(const r of Object.values(fields))max=Math.max(max,r.time+1);return max;}
   let tomb = new Map();   // path -> deletion time (ms)
   const docSubs = new Map(), colSubs = new Map();
@@ -53,11 +53,11 @@
   let saveTimer = null, saveQueue = Promise.resolve();
   function saveStatus(state,message=''){window.dispatchEvent(new CustomEvent('cashbook-save',{detail:{state,message}}));}
   function persist(){
-    if(loadError)return Promise.reject(Error('Saved ledger could not be read. Restore a known backup first.'));
+    if(loadError)return Promise.reject(Error('Your saved records could not be read. Restore a backup first.'));
     assertWritable();const copy=clone(CashbookSchema.validate(snapshot())),password=ledgerPassword;pendingWrites++;meta.hasPendingWrites=true;saveStatus('saving');
     const job=saveQueue.catch(()=>{}).then(async()=>{
       try{
-        let txt=JSON.stringify(copy);if(txt.length>CashbookSchema.MAX_BYTES)throw Error('Ledger exceeds the storage size limit. Export and archive records.');if(password)txt=await CashbookSecurity.seal(txt,password);
+        let txt=JSON.stringify(copy);if(txt.length>CashbookSchema.MAX_BYTES)throw Error('Your records have reached the storage limit. Please contact support.');if(password)txt=await CashbookSecurity.seal(txt,password);
         if(DESK)await DESK.write(txt);
         else if(FS){await FS.writeFile({path:FILE+'.saving',directory:'DATA',encoding:'utf8',data:txt,recursive:true});await FS.rename({from:FILE+'.saving',to:FILE,directory:'DATA',toDirectory:'DATA'});}
         else localStorage.setItem(FILE,txt);
@@ -301,7 +301,7 @@
   async function readBackup(text,password) {
     if(typeof text!=='string'||text.length>30e6)throw Error('Backup is too large. Choose a Family Cashbook JSON backup under 30 MB.');
     text=text.replace(/^\uFEFF/,'');let parsed;
-    try{parsed=JSON.parse(text);}catch{throw Error('This file is not readable backup JSON. Choose the original Family Cashbook backup, not an installer, ZIP, image or statement.');}
+    try{parsed=JSON.parse(text);}catch{throw Error('This file is not readable backup JSON. Choose your original backup file, not an installer, ZIP, image or statement.');}
     const encrypted=parsed?.app==='family-cashbook-encrypted';
     let key=null;if(encrypted){if(!password)throw Error('This backup is encrypted. Enter its recovery code or passphrase.');try{const o=await openWith(text,password);text=o.plain;key=o.password;}catch(e){throw Error(parsed.keyId?'This backup needs the recovery code with ID '+parsed.keyId+'. Nothing was restored.':e.message);}}
     const candidate=CashbookSchema.parse(text,{legacy:true});
@@ -309,7 +309,7 @@
   }
   async function inspectBackup(text,password) {
     const {candidate:o,encrypted}=await readBackup(text,password),counts={};
-    if(!o.docs['settings/main']||!Object.keys(o.docs).some(p=>p.startsWith('accounts/')||p.startsWith('fxAccounts/')))throw Error('This file does not contain a complete ledger. Choose a full Family Cashbook backup.');
+    if(!o.docs['settings/main']||!Object.keys(o.docs).some(p=>p.startsWith('accounts/')||p.startsWith('fxAccounts/')))throw Error('This file is not a complete backup. Choose a full Family Money backup.');
     for(const p of Object.keys(o.docs)){const collection=p.split('/')[0];counts[collection]=(counts[collection]||0)+1;}
     return {encrypted,records:Object.keys(o.docs).length,counts,start:o.docs['settings/main'].start,end:o.docs['settings/main'].end,familyOwner:o.docs['family/main']?.mode==='owner'};
   }
@@ -321,7 +321,7 @@
     // Preserve the current snapshot before replacing it.
     if(lockedEnvelope)throw Error('Unlock before restoring.');
     const recovery=loadError||!docs.size?null:await exportData(ledgerPassword||undefined,{recovery:true});
-    if(recovery==='cancelled')throw Error('Restore cancelled; the current ledger was kept.');
+    if(recovery==='cancelled')throw Error('Restore cancelled. Your current records were kept.');
     if(loadError&&!sourcePreserved)throw Error('Export the unreadable source before restoring.');
     if(encrypted&&!ledgerPassword)ledgerPassword=key;
     await clearDeviceVault();
@@ -439,18 +439,18 @@
     try{await hold(()=>Plug('Share').share(asFile?{title:opts.title,files:[w.uri],dialogTitle:opts.dialogTitle}:{title:opts.title,url:w.uri,dialogTitle:opts.dialogTitle}));}
     finally{try{await FS.deleteFile({path:name,directory:'CACHE'});}catch{}}
   }
-  async function lock(){await ready;await saveQueue;if(saveError)throw Error('Retry the save before locking.');if(!ledgerPassword)throw Error('Enable working-ledger encryption first.');location.reload();}
+  async function lock(){await ready;await saveQueue;if(saveError)throw Error('Retry the save before locking.');if(!ledgerPassword)throw Error('Set up your PIN first.');location.reload();}
   // Paired device keys are separate from backups and encrypted with this device's ledger key.
   const VAULT_FILE='family-cashbook-local-devices.json';
-  async function readDeviceVault(){await ready;assertWritable();if(!ledgerPassword)throw Error('Protect this device with a passphrase first.');let text=null;if(DESK)text=await DESK.readDeviceVault();else if(FS){try{text=(await FS.readFile({path:VAULT_FILE,directory:'DATA',encoding:'utf8'})).data;}catch(e){if(e?.code!=='ENOENT'&&!/does not exist|not found/i.test(e?.message||''))throw e;}}else text=localStorage.getItem(VAULT_FILE);if(!text)return null;if(text.length>200000)throw Error('Invalid paired-device store.');return JSON.parse(await CashbookSecurity.open(text,ledgerPassword));}
-  async function writeDeviceVault(value){await ready;assertWritable();if(!ledgerPassword)throw Error('Protect this device with a passphrase first.');CashbookSchema.safe(value);const plain=JSON.stringify(value);if(plain.length>100000)throw Error('Too many paired devices.');const text=await CashbookSecurity.seal(plain,ledgerPassword);if(DESK)await DESK.writeDeviceVault(text);else if(FS){await FS.writeFile({path:VAULT_FILE+'.saving',directory:'DATA',encoding:'utf8',data:text});await FS.rename({from:VAULT_FILE+'.saving',to:VAULT_FILE,directory:'DATA',toDirectory:'DATA'});}else localStorage.setItem(VAULT_FILE,text);}
+  async function readDeviceVault(){await ready;assertWritable();if(!ledgerPassword)throw Error('Protect this device with a PIN first.');let text=null;if(DESK)text=await DESK.readDeviceVault();else if(FS){try{text=(await FS.readFile({path:VAULT_FILE,directory:'DATA',encoding:'utf8'})).data;}catch(e){if(e?.code!=='ENOENT'&&!/does not exist|not found/i.test(e?.message||''))throw e;}}else text=localStorage.getItem(VAULT_FILE);if(!text)return null;if(text.length>200000)throw Error('Invalid paired-device store.');return JSON.parse(await CashbookSecurity.open(text,ledgerPassword));}
+  async function writeDeviceVault(value){await ready;assertWritable();if(!ledgerPassword)throw Error('Protect this device with a PIN first.');CashbookSchema.safe(value);const plain=JSON.stringify(value);if(plain.length>100000)throw Error('Too many paired devices.');const text=await CashbookSecurity.seal(plain,ledgerPassword);if(DESK)await DESK.writeDeviceVault(text);else if(FS){await FS.writeFile({path:VAULT_FILE+'.saving',directory:'DATA',encoding:'utf8',data:text});await FS.rename({from:VAULT_FILE+'.saving',to:VAULT_FILE,directory:'DATA',toDirectory:'DATA'});}else localStorage.setItem(VAULT_FILE,text);}
   async function clearDeviceVault(){if(DESK?.writeDeviceVault)await DESK.writeDeviceVault(null);else if(FS){try{await FS.deleteFile({path:VAULT_FILE,directory:'DATA'});}catch(e){if(e?.code!=='ENOENT'&&!/does not exist|not found/i.test(e?.message||''))throw e;}}else localStorage.removeItem(VAULT_FILE);window.dispatchEvent(new Event('cashbook-ledger-replaced'));}
   async function mergePeer(value){await ready;assertWritable();if(!ledgerPassword)throw Error('Unlock an encrypted ledger before syncing.');if(Drive.connected)throw Error('Disconnect Google Drive before using local Wi-Fi sync.');if(docs.get('family/main')||Object.keys(value?.docs||{}).some(p=>p.startsWith('family/')))throw Error('Family ledgers use signed family exchange.');const remote=CashbookSchema.parse(JSON.stringify(value));if(!remote.docs['settings/main']||!Object.keys(remote.docs).some(p=>p.startsWith('accounts/')))throw Error('The other device has no complete ledger.');await saveQueue;const previous=clone(snapshot());let result;try{result=await mergeIn(remote);CashbookSchema.validate(snapshot());}catch(e){if(!saveError)load(previous);throw e;}await saveQueue;return result;}
 
   async function exportSource(){if(!rawSource)throw Error("No saved source is available.");const r=await exportFile("family-cashbook-unreadable-source-"+Date.now()+".json",rawSource,"application/json");if(r===false)throw Error("Export cancelled.");sourcePreserved=true;}
   async function shareFile(name,text,mime='application/json'){
     if(NATIVE&&FS&&Plug('Share')){await shareThenClean(name,text,{title:'Family Money encrypted file',dialogTitle:'Choose WhatsApp, email or another app'},true);return 'shared';}
-    if(!DESK&&navigator.canShare&&navigator.share){const file=new File([text],name,{type:mime});if(navigator.canShare({files:[file]})){await navigator.share({files:[file],title:'Family Cashbook encrypted file'});return 'shared';}}
+    if(!DESK&&navigator.canShare&&navigator.share){const file=new File([text],name,{type:mime});if(navigator.canShare({files:[file]})){await navigator.share({files:[file],title:'Family Money encrypted file'});return 'shared';}}
     return exportFile(name,text,mime);
   }
   window.__cashbookLocal = {readDeviceVault,writeDeviceVault,mergePeer,inspectBackup,shareFile,getSnapshot:async()=>{await ready;if(lockedEnvelope)throw Error('Unlock first.');return clone(snapshot());}, exportSource,get readError(){return loadError;},unlock,encryptLedger,lock,pinUnlock,setPin,protect,replaceCode,checkPin,checkCurrentPin,newCode,codeId,setAutolock,lockInfo,hold,holdFor,onHold,hasRecords:()=>docs.size>0,get locked(){return !!lockedEnvelope;},get encrypted(){return !!(lockedEnvelope||ledgerPassword);},flush:async()=>{await saveQueue;if(saveError)throw saveError;}, retrySave:()=>persist(), get saveError(){return saveError||loadError;}, get conflicts(){return conflicts;}, clearConflict:async id=>{delete conflicts[id];await persist();}, exportData, importData, exportFile, drive: Drive, pwa, desktop };

@@ -88,12 +88,12 @@
       v = X.compute(s, on),
       accounts = Object.entries(s.fxAccounts || {});
     return (
-      '<section class="section"><div class="section-head"><h2>Multi-currency accounts & remittances</h2></div><div class="panel pad"><p>Legacy Cashbook accounts and tools remain in INR. Keep each foreign account here in its own currency; foreign balances and credit-card debt are also valued in INR on Home and Net worth. Do not create the same bank account in both places. NRE/NRO are account labels, not currencies or legal classifications.</p><p>Manual dated rates are INR per one foreign unit. Posted entries and remittances keep the rates you record; later valuation rates do not rewrite that history. These are accounting estimates, not tax calculations.</p>' +
+      '<section class="section"><div class="section-head"><h2>Multi-currency accounts & remittances</h2></div><div class="panel pad"><p>Your main accounts and tools stay in INR. Keep each foreign account here in its own currency; foreign balances and credit-card debt are also valued in INR on Home and Net worth. Do not create the same bank account in both places. NRE/NRO are account labels, not currencies or legal classifications.</p><p>Manual dated rates are INR per one foreign unit. Posted entries and remittances keep the rates you record; later valuation rates do not rewrite that history. These are accounting estimates, not tax calculations.</p>' +
       (v.missing.length
         ? '<p><b>Valuation incomplete. Add rates for ' +
           v.missing.map(esc).join(', ') +
           '.</b></p>'
-        : '<p>Foreign-ledger liquid cash as of ' +
+        : '<p>Foreign cash as of ' +
           on +
           ': <b>' +
           X.format(v.liquidINR, 'INR') +
@@ -106,7 +106,7 @@
         [
           'Account',
           'Currency',
-          'Native balance',
+          'Balance in own currency',
           'INR value',
           'Revaluation vs recorded cost'
         ],
@@ -163,7 +163,7 @@
       field('INR per one unit', 'fx-rate', 'number', '') +
       '</div>' +
       btn('rate', 'Save rate') +
-      '<h3>Post native-currency income or expense</h3><input type="hidden" id="fx-entry-id"><div class="form">' +
+      '<h3>Record income or spending in this currency</h3><input type="hidden" id="fx-entry-id"><div class="form">' +
       select('Currency account', 'fx-entry-account', fxOptions()) +
       select(
         'Activity',
@@ -198,7 +198,7 @@
       field('Expected day', 'fx-plan-day', 'number', 1) +
       '<label><input type="checkbox" id="fx-plan-complete"> Complete: use recorded actuals only</label></div>' +
       btn('plan', 'Save monthly budget') +
-      '<h3>Transfer / remittance</h3><input type="hidden" id="fx-transfer-id"><p>Record exact debited principal, source-currency fee and net amount received. Transfers to or from a legacy INR account update that account in the main Cashbook automatically. Do not log the same movement again as income or expense.</p><div class="form">' +
+      '<h3>Transfer / remittance</h3><input type="hidden" id="fx-transfer-id"><p>Record exact debited principal, source-currency fee and net amount received. Transfers to or from an INR account update that account in the main Cashbook automatically. Do not log the same movement again as income or expense.</p><div class="form">' +
       select('From', 'fx-from', refs()) +
       select('To', 'fx-to', refs()) +
       field('Date', 'fx-transfer-date', 'date', on) +
@@ -237,7 +237,7 @@
       X.format(v.executionDifferenceINR, 'INR') +
       ' is shown separately.</p>' +
       table(
-        ['Date', 'Activity', 'Native amount', 'Recorded INR / fee', ''],
+        ['Date', 'Activity', 'Amount', 'Recorded INR / fee', ''],
         v.rows
           .filter((e) => !['plan', 'reconcile'].includes(e.event))
           .map((e) =>
@@ -274,7 +274,7 @@
     );
   }
   async function save(path, body) {
-    if (!A.canWrite()) throw Error('This ledger is read-only.');
+    if (!A.canWrite()) throw Error('You can view these records but not change them.');
     await A.db().doc(path).set(body);
   }
   function open(date) {
@@ -314,9 +314,9 @@
           'Account or source',
           'Destination',
           'Currency',
-          'Native amount',
+          'Amount',
           'Target currency',
-          'Received native amount',
+          'Amount received',
           'Recorded INR per source unit',
           'Source fee',
           'Recorded INR per destination unit',
@@ -557,7 +557,7 @@
       open(e.date);
       if (
         confirm(
-          'Delete this currency record? A remittance removal also removes its effect on legacy INR accounts.'
+          'Delete this currency record? Removing a remittance also removes its effect on your INR accounts.'
         )
       )
         await A.db().doc(t.dataset.path).delete();

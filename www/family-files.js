@@ -133,7 +133,7 @@
     await verify(value.member, value.signature, value.member);
     if (value.member.id !== expectedFingerprint.trim().toLowerCase())
       throw Error(
-        'Member fingerprint differs. Verify it independently before inviting.'
+        'The security code does not match. Check it with them directly before inviting.'
       );
     return value.member;
   }

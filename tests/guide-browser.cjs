@@ -91,7 +91,7 @@ const server = http.createServer((req, res) => {
         buffer: Buffer.from(JSON.stringify(backup)),
       });
       await page
-        .getByText("Plain backup detected — no passphrase is needed.", {
+        .getByText("Older backup detected. No code is needed.", {
           exact: true,
         })
         .waitFor();
@@ -183,7 +183,7 @@ const server = http.createServer((req, res) => {
         .click();
       await page
         .getByText(
-          "This file is not readable backup JSON. Choose the original Family Cashbook backup, not an installer, ZIP, image or statement.",
+          "This file is not readable backup JSON. Choose your original backup file, not an installer, ZIP, image or statement.",
           { exact: true },
         )
         .first()

@@ -267,7 +267,7 @@ label.f{display:grid;gap:4px;font-size:12.5px;color:var(--ink2)}
 <body>
 <header class="top">
   <div class="top-row">
-    <div class="brand"><img class="brand-mark" src="icons/icon-192.png" alt="" width="48" height="48"><div class="brand-copy"><span class="brand-owner">ReadyTrove</span><h1>Family Money</h1><span class="sub" id="sub">Loading family accounts…</span></div></div>
+    <div class="brand"><img class="brand-mark" src="icons/icon-192.png" alt="" width="48" height="48"><div class="brand-copy"><span class="brand-owner">ReadyTrove</span><h1>Family Money</h1><span class="sub" id="sub">Loading…</span></div></div>
     <div class="row" style="flex-wrap:nowrap;gap:10px;min-width:0"><button class="syncchip" id="sync" data-act="companion" hidden></button><div class="who" id="who"></div></div>
   </div>
   <nav class="tabs" role="tablist" id="tabs">
@@ -278,7 +278,7 @@ label.f{display:grid;gap:4px;font-size:12.5px;color:var(--ink2)}
 </header>
 
 <main class="wrap" id="view">
-  <div class="panel empty" style="margin-top:24px"><b>Loading your family's accounts</b>Balances, the monthly plan and recorded entries appear here once the ledger loads.</div>
+  <div class="panel empty" style="margin-top:24px"><b>Loading your records</b>Your balances and plan will appear here in a moment.</div>
 </main>
 
 <button class="btn primary fab" id="fab" hidden>+ Add entry</button>
@@ -375,7 +375,7 @@ const actualVal = (c, m) => { const l = C.act[c.id]?.[m]; return l && l.length ?
 // ---------- writes ----------
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast._t); toast._t = setTimeout(() => t.hidden = true, 3200); }
 async function write(fn, okMsg) {
-  if (!db) { toast('The shared ledger is not connected in this view.'); return false; }
+  if (!db) { toast('Your records could not be opened. Close the app and open it again.'); return false; }
   try { await fn(); if (okMsg) toast(okMsg); return true; }
   catch (e) {
     if (e?.code === 'permission_denied'||e?.code==='revoked') { canWrite=false;toast('Your data service denied this change.'); }
@@ -404,8 +404,8 @@ function updateSync() {
   if (!D) { el.hidden = true; return; }
   const wifi=window.CashbookWifiUI?.status;
   if(!D.connected&&wifi?.paired){el.hidden=false;el.dataset.s=wifi.busy?'syncing':'local';el.textContent=wifi.busy?'Local Wi-Fi · syncing':wifi.lastSync?'Local Wi-Fi · paired':'Local Wi-Fi · first sync pending';el.title=wifi.lastSync?'Last local sync: '+new Date(wifi.lastSync).toLocaleString():'Open Phone & laptop sync';return;}
-  el.hidden = false; el.dataset.s = D.status; el.textContent = !D.configured() ? 'Saved here · sync setup' : D.pending && D.connected && D.status !== 'syncing' ? 'Saved here · sync pending' : syncLabel(D);
-  el.title = D.error || (D.connected ? 'Saved in your Google Drive' : 'Connect Google Drive in Accounts & setup');
+  el.hidden = false; el.dataset.s = D.status; el.textContent = !D.configured() ? 'Saved on this device' : D.pending && D.connected && D.status !== 'syncing' ? 'Saved here · sync pending' : syncLabel(D);
+  el.title = D.error || (D.connected ? 'Saved in your Google Drive' : 'Saved on this device');
 }
 function render() {
   if(window.__cashbookLocal?.readError){CashbookUI.recoveryScreen();return;}
@@ -417,15 +417,15 @@ function render() {
   C = compute();
   if (!selMonth || !C.ms.includes(selMonth)) selMonth = C.cur;
   const st = S.settings;
-  $('#sub').textContent = st ? `${C.accs.length} accounts · plan ${mlabel(st.start)} – ${mlabel(st.end)}` : (db ? 'Waiting for the ledger…' : 'Shared ledger unavailable in this view');
+  $('#sub').textContent = st ? `${C.accs.length} account${C.accs.length === 1 ? '' : 's'} · plan ${mlabel(st.start)} – ${mlabel(st.end)}` : (db ? 'Loading…' : 'Records not available');
   document.querySelectorAll('#tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === tab));
   $('#fab').hidden = !db || !canWrite || !Object.keys(S.categories).length || tab === 'transactions';
   const v = $('#view');
-  if (!db) { v.innerHTML = `<div class="panel empty" style="margin-top:24px"><b>The shared ledger isn't reachable here</b>Open ReadyTrove Family Money from Claude while signed in to see and update the family's accounts.</div>`; return; }
+  if (!db) { v.innerHTML = `<div class="panel empty" style="margin-top:24px"><b>Your records could not be opened</b>Close the app and open it again. Your saved records have not changed.</div>`; return; }
   if (!st && S.ready.has('settings')) {
     const D = window.__cashbookLocal?.drive, drive = D && D.configured();
-    v.innerHTML = `<div class="panel empty" style="margin-top:24px"><b>Welcome to Family Money</b>${drive ? 'Already using ReadyTrove Family Money on another device? Load your ledger from Google Drive. New here? Start a fresh ledger, then connect Drive in Accounts &amp; setup.' : 'Add your bank accounts, then plan monthly income, EMIs and expenses. Your records stay on your own devices, protected by your PIN.'}
-      <div class="row" style="margin-top:14px;justify-content:center">${drive ? `<button class="btn primary" data-act="drive-connect">${D.status === 'syncing' ? 'Loading…' : 'Load my ledger from Google Drive'}</button>` : ''}<button class="btn" data-guide="restore">Restore a backup</button><button class="btn" data-guide="manual">User manual</button><button class="btn" data-act="companion">Phone & laptop sync</button>${canWrite ? `<button class="btn ${drive ? '' : 'primary'}" style="order:-1" data-act="startledger">Start fresh</button>` : '<span class="dim">Ask the family head to set it up.</span>'}</div>
+    v.innerHTML = `<div class="panel empty" style="margin-top:24px"><b>Welcome to Family Money</b>${drive ? 'Already using Family Money on another device? Load your records from Google Drive. New here? Start fresh, then connect Drive in Accounts &amp; backup.' : 'Add your bank accounts, then plan monthly income, EMIs and expenses. Your records stay on your own devices, protected by your PIN.'}
+      <div class="row" style="margin-top:14px;justify-content:center">${drive ? `<button class="btn primary" data-act="drive-connect">${D.status === 'syncing' ? 'Loading…' : 'Load my records from Google Drive'}</button>` : ''}<button class="btn" data-guide="restore">Restore a backup</button><button class="btn" data-guide="manual">User manual</button><button class="btn" data-act="companion">Phone & laptop sync</button>${canWrite ? `<button class="btn ${drive ? '' : 'primary'}" style="order:-1" data-act="startledger">Start fresh</button>` : '<span class="dim">Ask the family head to set it up.</span>'}</div>
       ${drive && D.error ? `<p class="hint" style="margin:10px auto 0;color:var(--bad)">${esc(D.error)}</p>` : ''}</div>`;
     return;
   }
@@ -448,7 +448,7 @@ function spark(accId) {
 }
 
 function overview() {
- if(C.fxMissing.length){$('#view').innerHTML='<section class="section"><div class="panel pad"><h2>Reporting total needs FX rates</h2><p>Account balances are retained in their native currencies. Add rates before relying on combined cash, forecasts or net worth.</p><p>'+C.fxMissing.map(esc).join(', ')+'</p><button class="btn" data-feature="currency">Open currency accounts</button></div></section>';return;}
+ if(C.fxMissing.length){$('#view').innerHTML='<section class="section"><div class="panel pad"><h2>Exchange rates needed</h2><p>Foreign accounts need an exchange rate before they can be added to your totals. Add the rates listed below.</p><p>'+C.fxMissing.map(esc).join(', ')+'</p><button class="btn" data-feature="currency">Open currency accounts</button></div></section>';return;}
   const cur = C.cur, last = C.ms[C.ms.length - 1];
   const nowTot = C.total[cur] ?? 0;
   const ahead = C.ms.filter(m => m >= cur);
@@ -746,7 +746,7 @@ function loanDetail(x, horizonEnd) {
   if (x.kind === 'emi' && x.stuck) warn = `<div class="alert"><span class="ic">!</span><div>At ${inr(x.sched)} a month this loan is never repaid${x.rate ? `; the payment barely covers the ${x.rate}% interest` : ''}. Check the balance, EMI and rate.</div></div>`;
   else if (x.kind === 'interest' && !x.end) warn = `<div class="alert" style="background:var(--warn-soft)"><span class="ic" style="background:var(--warn)">?</span><div>Set a maturity month to see when the principal of ${inr(x.now)} falls due.</div></div>`;
   else if (gap) warn = `<div class="alert" style="background:var(--warn-soft)"><span class="ic" style="background:var(--warn)">!</span><div>Your monthly plan doesn't match this loan's schedule in ${gap.diffs} month${gap.diffs > 1 ? 's' : ''} (for example ${mlabel(gap.sample.m)}: plan ${inr(gap.sample.have)}, schedule ${inr(gap.sample.want)}). The plan drives your account balances and forecast.${canWrite ? ` <button class="btn small" data-act="loanfit" data-cat="${c.id}">Update the plan to match</button>` : ''}</div></div>`;
-  if (x.end && x.end > horizonEnd && !x.stuck) warn += `<p class="hint" style="margin:8px 0 0">The schedule runs to ${mlabel(x.end)}, beyond your plan (${mlabel(horizonEnd)}). Extend the plan in Accounts &amp; setup to include the later EMIs in the forecast.</p>`;
+  if (x.end && x.end > horizonEnd && !x.stuck) warn += `<p class="hint" style="margin:8px 0 0">The schedule runs to ${mlabel(x.end)}, beyond your plan (${mlabel(horizonEnd)}). Extend the plan in Accounts &amp; backup to include the later EMIs in the forecast.</p>`;
   const rows = x.rows;
   const chart = rows.length > 1 ? (() => {
     const W = 520, H = 120, L = 6, R = 6, T = 10, B = 20, mx = Math.max(x.openBal, ...rows.map(r => r.bal)) || 1;
@@ -1140,7 +1140,7 @@ function holdModal(id, side) {
   const cats = catList().filter(c => c.type !== 'income' && c.group !== 'Loans & EMIs');
   openModal(`<h2>${id ? 'Edit' : 'Add'} ${sd === 'asset' ? 'asset' : 'liability'}</h2>
     <div class="form">
-      <label class="f full">Name<input id="h-name" value="${esc(h.name)}" placeholder="${sd === 'asset' ? 'e.g. Aura Velune Villa, Ooty' : 'e.g. HDFC credit card'}"></label>
+      <label class="f full">Name<input id="h-name" value="${esc(h.name)}" placeholder="${sd === 'asset' ? 'e.g. Flat in Pune' : 'e.g. HDFC credit card'}"></label>
       ${sd==='liability'?'<label class="f full">Already represented by an account?<select id="h-account"><option value="">Separate liability</option>'+C.accs.filter(a=>a.kind==='Credit').map(a=>'<option value="'+a.id+'" '+(h.accountId===a.id?'selected':'')+'>'+esc(a.name)+' (counted automatically)</option>').join('')+'</select></label>':''}
       <label class="f">Type<select id="h-type">${types.map(t => `<option ${t === h.type ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
       <label class="f">${sd === 'asset' ? 'Current value' : 'Amount owed'} (₹)<input id="h-val" inputmode="decimal" value="${h.value ? (+h.value).toLocaleString('en-IN') : ''}"></label>
@@ -1172,23 +1172,23 @@ function setup() {
   </div><p class="hint" style="margin:10px 0 0">Extending the end adds empty months. Use Edit on a Plan row to fill a recurring amount into the new months.</p></div></div>
   ${window.__cashbookLocal?.desktop ? `<div class="section"><h2>Where your data is saved</h2>
   <div class="panel pad"><p style="margin:0 0 6px"><span class="pill ok">Saved on this computer</span></p>
-    <p class="hint" style="margin:0 0 6px">Your ledger is the file <b>family-cashbook-data.json</b> in <b id="desk-dir">…</b>. A dated copy goes into its <b>Backups</b> folder every day (the last 60 days are kept). Everything works without internet.</p>
-    <p class="hint" style="margin:0 0 10px">To keep a copy in the cloud or use the same ledger on another laptop, choose a folder inside <b>Google Drive for desktop</b> or <b>OneDrive</b>. A USB stick works too.</p>
+    <p class="hint" style="margin:0 0 6px">Your records are in the file <b>family-cashbook-data.json</b> in <b id="desk-dir">…</b>. A dated copy goes into its <b>Backups</b> folder every day (the last 60 days are kept). Everything works without internet.</p>
+    <p class="hint" style="margin:0 0 10px">To keep a copy in the cloud or use the same records on another laptop, choose a folder inside <b>Google Drive for desktop</b> or <b>OneDrive</b>. A USB stick works too.</p>
     <div class="row"><button class="btn" data-act="desk-open">Open data folder</button><button class="btn" data-act="desk-choose">Change folder…</button></div></div></div>` : ''}
   ${window.__cashbookLocal?.drive?.configured() ? (() => { const D = window.__cashbookLocal.drive; return `<div class="section"><h2>Google Drive sync</h2>
   <div class="panel pad">${D.connected
-    ? `<p style="margin:0 0 6px"><span class="pill ok">Connected</span> ${D.email ? 'as <b>' + esc(D.email) + '</b>' : ''}</p><p class="hint" style="margin:0 0 10px">Your ledger is saved in your Google Drive as “Family Cashbook data.json”. Sign in with the same Google account on your phone, tablet or laptop to use the same ledger. Changes sync automatically when you're online. ${D.lastSync ? 'Last synced ' + new Date(D.lastSync).toLocaleString() + '.' : ''}</p>
+    ? `<p style="margin:0 0 6px"><span class="pill ok">Connected</span> ${D.email ? 'as <b>' + esc(D.email) + '</b>' : ''}</p><p class="hint" style="margin:0 0 10px">Your records are saved in your Google Drive as “Family Cashbook data.json”. Sign in with the same Google account on your phone, tablet or laptop to use the same ledger. Changes sync automatically when you're online. ${D.lastSync ? 'Last synced ' + new Date(D.lastSync).toLocaleString() + '.' : ''}</p>
        <div class="row"><button class="btn primary" data-act="drive-sync">${D.status === 'syncing' ? 'Syncing…' : 'Sync now'}</button><button class="btn ghost danger" data-act="drive-off">Disconnect this device</button></div>`
-    : `<p class="hint" style="margin:0 0 10px">Save your ledger to your own Google Drive and use it on your phone, tablet and laptop. The app can only see the one file it creates; nothing else in your Drive.</p><button class="btn primary" data-act="drive-connect">${D.status === 'syncing' ? 'Connecting…' : 'Connect Google Drive'}</button>`}
+    : `<p class="hint" style="margin:0 0 10px">Save your records to your own Google Drive and use it on your phone, tablet and laptop. The app can only see the one file it creates; nothing else in your Drive.</p><button class="btn primary" data-act="drive-connect">${D.status === 'syncing' ? 'Connecting…' : 'Connect Google Drive'}</button>`}
     ${D.error ? `<p class="hint" style="margin:10px 0 0;color:var(--bad)">${esc(D.error)}</p>` : ''}</div></div>`; })() : ''}
   ${window.__cashbookLocal?.pwa?.web ? (() => { const P = window.__cashbookLocal.pwa; return `<div class="section"><h2>Use offline on this computer</h2>
   <div class="panel pad"><div class="row" style="gap:8px 16px;margin-bottom:10px">
     <span class="pill ${P.installed ? 'ok' : 'act'}">${P.installed ? 'Installed as an app' : 'Opens offline after the first visit'}</span>
     <span class="pill ${P.persisted ? 'ok' : P.persisted === false ? 'low' : 'act'}">${P.persisted ? 'Storage protected' : P.persisted === false ? 'Storage not protected yet' : 'Checking storage…'}</span></div>
-    <p class="hint" style="margin:0 0 10px">${P.installed ? 'ReadyTrove Family Money opens from its own icon, with or without internet.' : 'Install it to open Family Cashbook from its own icon, with or without internet.'} ${P.persisted ? 'The browser will keep your ledger even when disk space runs low.' : 'Installing the app usually lets the browser protect your ledger from automatic clean-up.'} Clearing the browser's history or site data still deletes it, so keep backups.</p>
+    <p class="hint" style="margin:0 0 10px">${P.installed ? 'ReadyTrove Family Money opens from its own icon, with or without internet.' : 'Install it to open Family Money from its own icon, with or without internet.'} ${P.persisted ? 'The browser will keep your records even when disk space runs low.' : 'Installing the app usually lets the browser protect your records from automatic clean-up.'} Clearing the browser's history or site data still deletes it, so keep backups.</p>
     <div class="row">${P.canInstall ? '<button class="btn primary" data-act="pwa-install">Install ReadyTrove Family Money</button>' : P.installed ? '' : '<span class="hint" style="margin:0">To install: in Chrome, open the ⋮ menu → <b>Cast, save and share → Install page as app</b>. In Edge: ⋯ menu → <b>Apps → Install this site as an app</b>.</span>'}${P.persisted === false ? '<button class="btn" data-act="pwa-protect">Protect storage</button>' : ''}</div></div></div>`; })() : ''}
   ${window.__cashbookLocal ? `<div class="section"><h2>Backup</h2>
-  <div class="panel pad"><p class="hint" style="margin:0 0 10px">${window.__cashbookLocal?.drive?.connected ? 'Google Drive keeps your ledger safe. A backup file is an extra copy you can keep anywhere.' : (window.__cashbookLocal?.desktop ? 'The app already keeps daily copies in the Backups folder. A backup file is an extra copy you can keep anywhere, such as a USB stick or email.' : 'Without Drive sync your ledger is stored only on this device. Save a backup regularly so you can restore it on a new device.')}</p>
+  <div class="panel pad"><p class="hint" style="margin:0 0 10px">${window.__cashbookLocal?.drive?.connected ? 'Google Drive keeps your records safe. A backup file is an extra copy you can keep anywhere.' : (window.__cashbookLocal?.desktop ? 'The app already keeps daily copies in the Backups folder. A backup file is an extra copy you can keep anywhere, such as a USB stick or email.' : 'Your records are stored only on this device. Save a backup regularly so you can restore it on a new device.')}</p>
   <div class="row"><button class="btn primary" data-act="backup">Save a backup</button><label class="btn" for="restore-file">Restore from a backup</label><input type="file" id="restore-file" hidden></div></div></div>`
   : `<div class="section"><h2>Sharing with the family</h2>
   <div class="panel pad hint" style="max-width:none">Share this page from its menu. Give family members <b>Editor</b> access so they can log salaries, bills and EMIs as they happen; people with view access can see everything but not change it. Every entry records who added it.</div></div>`}`;
@@ -1299,7 +1299,7 @@ document.addEventListener('click', async ev => {
     if (!confirmTwice(t, 'ro' + t.dataset.m)) return;
     if(t.dataset.m!==closedThrough()||!isAdmin||!canWrite)return toast('Only the latest closed month can be reopened.');
     const prev=addM(t.dataset.m,-1),at=new Date().toISOString();
-    if(!db.applyBatch)return toast('This adapter does not support atomic month review.');
+    if(!db.applyBatch)return toast('Please update the app and try again.');
     return write(()=>db.applyBatch([{type:'set',path:'features/'+newId('audit'),data:{type:'audit',action:'month-reopen',month:t.dataset.m,at,by:uid||''}},{type:'update',path:'settings/main',data:{closedThrough:S.settings.start&&prev>=S.settings.start?prev:'',reopenedAt:at,reopenedBy:uid||''}}]),mlabel(t.dataset.m)+' reopened. Use Review and close after corrections.');
   }
   if (a === 'gomonth') { selMonth = t.dataset.m; tab = 'month'; render(); window.scrollTo(0, 0); return; }
@@ -1331,17 +1331,17 @@ document.addEventListener('click', async ev => {
   if (a === 'drive-connect' || a === 'drive-sync') {
     const D = window.__cashbookLocal?.drive; if (!D) return;
     if(!window.__cashbookLocal.encrypted)return CashbookCompanion.open();
-    try { await D.connect(); toast(a === 'drive-connect' ? 'Google Drive connected. Your ledger is in sync.' : 'Synced with Google Drive'); } catch (e) { toast(e?.message || 'Could not reach Google Drive.'); }
+    try { await D.connect(); toast(a === 'drive-connect' ? 'Google Drive connected. Your records are in sync.' : 'Synced with Google Drive'); } catch (e) { toast(e?.message || 'Could not reach Google Drive.'); }
     return render();
   }
   if (a === 'drive-off') {
     if (!confirmTwice(t, 'driveoff')) return;
-    await window.__cashbookLocal.drive.disconnect(); toast('This device is disconnected. Your ledger stays here and in Drive.'); return render();
+    await window.__cashbookLocal.drive.disconnect(); toast('This device is disconnected. Your records stay here and in Drive.'); return render();
   }
   if (a === 'pwa-install') { const ok = await window.__cashbookLocal.pwa.install(); if (ok) toast('Installed. Open ReadyTrove Family Money from its icon, even offline.'); return render(); }
   if (a === 'pwa-protect') { await window.__cashbookLocal.pwa.protect(); toast(window.__cashbookLocal.pwa.persisted ? 'Storage protected' : 'The browser declined for now. Installing the app usually allows it.'); return render(); }
   if (a === 'desk-open') { window.__cashbookLocal.desktop.openFolder(); return; }
-  if (a === 'desk-choose') { const r = await window.__cashbookLocal.desktop.chooseFolder(); if (r) { toast(r.reload ? 'Using the ledger already in that folder.' : 'Your ledger now saves to the new folder.'); render(); } return; }
+  if (a === 'desk-choose') { const r = await window.__cashbookLocal.desktop.chooseFolder(); if (r) { toast(r.reload ? 'Using the records already in that folder.' : 'Your records now save to the new folder.'); render(); } return; }
   if (a === 'backup') { try { await window.__cashbookLocal.exportData(); } catch (e) { if (!/cancel/i.test(e?.message || '')) toast('Could not save the backup: ' + (e?.message || e)); } return; }
   if (a === 'newcat') return catModal(null, t.dataset.biz);
   if (a === 'newbiz') return bizModal(null);

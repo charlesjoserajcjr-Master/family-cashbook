@@ -13,8 +13,8 @@ const select=(label,key,options)=>'<label class="f">'+label+'<select id="'+key+'
 const option=(value,label,selected=false)=>'<option value="'+esc(value)+'" '+(selected?'selected':'')+'>'+esc(label)+'</option>';
 const accountOpts=()=>Object.values(S().accounts).map(a=>option(a.id,a.name)).join('');
 const cancel=()=>'<div class="row">'+btn('cancel','Cancel')+'</div>';
-const save=async(p,v)=>{if(!A.canWrite())throw Error('This ledger is read-only.');await A.db().doc(p).set(v);};
-const update=async(p,v)=>{if(!A.canWrite())throw Error('This ledger is read-only.');await A.db().doc(p).update(v);};
+const save=async(p,v)=>{if(!A.canWrite())throw Error('You can view these records but not change them.');await A.db().doc(p).set(v);};
+const update=async(p,v)=>{if(!A.canWrite())throw Error('You can view these records but not change them.');await A.db().doc(p).update(v);};
 const allMonths=()=>C().ms.filter(m=>!A.locked(m));
 const num=s=>{const n=Number($(s).value);if(!Number.isFinite(n))throw Error('Enter a valid number.');return n;};
 function positive(s,allowZero=false){const n=num(s);if(allowZero?n<0:n<=0)throw Error('Enter a positive amount.');return n;}
@@ -38,7 +38,7 @@ function afterRender(tab){
  const el=document.createElement('div');el.id='feature-toolbar';el.className='row';el.style.marginTop='12px';
  if(tab==='overview'){
   const r=recorded();
-  el.innerHTML=CashbookGuide.banner()+btn('quick-entry','Quick transaction')+'<div class="panel pad"><b>Recorded cash today: '+(r.fxMissing.length?'FX rates needed':fmt(r.cash))+'</b><div class="hint">Calculated from opening balances and recorded transactions. Forecast cards below include expected future activity.</div></div>';
+  el.innerHTML=CashbookGuide.banner()+btn('quick-entry','Quick transaction')+'<div class="panel pad"><b>Recorded cash today: '+(r.fxMissing.length?'Exchange rates needed':fmt(r.cash))+'</b><div class="hint">Calculated from opening balances and recorded transactions. Forecast cards below include expected future activity.</div></div>';
   const more=document.createElement('div');more.id='home-more';more.className='row';more.style.margin='12px 0';more.innerHTML=btn('calendar','Upcoming bills')+btn('scenarios','Compare a scenario')+btn('companion','Phone & laptop sync');$('#home-more')?.remove();$('.kpis')?.after(more);
  }else if(tab==='plan')el.innerHTML=btn('scenarios','What-if scenarios')+btn('goals','Savings goals')+btn('contract','Contract income')+btn('calendar','Bill dates');
  else if(tab==='transactions')el.innerHTML=btn('import','Import statement')+btn('month','Monthly review');
@@ -53,7 +53,7 @@ function menu(){
  ['Everyday',[['month','Monthly review'],['calendar','Bills calendar'],['reminders','Bill reminders'],['import','Statement import']]],
  ['Planning',[['goals','Savings goals'],['scenarios','What-if scenarios'],['contract','Contract income & currency conversion'],['business','Businesses']]],
  ['Loans and wealth',[['loans','Loans & EMIs'],['prepay','Loan prepayment'],['networth','Net worth'],['card','Add credit card'],['currency','Multi-currency accounts & remittances']]],
- ['Family and devices',[['companion','Phone & laptop sync'],['family','Encrypted family file sync'],['conflicts','Sync history']]],
+ ['Family and devices',[['companion','Phone & laptop sync'],['family','Share with family'],['conflicts','Sync history']]],
  ['Safety and help',[['security','PIN, recovery code and lock'],['setup','Accounts & backup'],['guide','Setup guide & user manual'],['tour','Take the tour']]],
  ...(paid?[['Plans',[['plans','Plans & family access'],['billing','Purchases & restore']]]]:[])];
  return panel('More',groups.map(([h,items])=>'<h3>'+h+'</h3><div class="tool-grid">'+items.map(([k,v])=>btn(k,v)).join('')+'</div>').join('')).replace(btn('menu','All tools'),'');
@@ -68,7 +68,7 @@ function scenarios(){
  (saved.length?'<h3>Saved comparisons</h3>'+saved.map(x=>btn('sc-load',esc(x.name),'data-id="'+x.id+'"')).join(''):''));
 }
 function scenarioInput(){
- if(C().fxMissing?.length)throw Error('Record missing FX valuation rates before comparing scenarios.');
+ if(C().fxMissing?.length)throw Error('Add the missing exchange rates before comparing scenarios.');
  const from=$('#sc-from').value,to=$('#sc-to').value;
  if(!allMonths().includes(from)||!allMonths().includes(to)||to<from)throw Error('Choose open months inside your plan.');
  const inc=num('#sc-income'),exp=num('#sc-expense');
@@ -102,7 +102,7 @@ function calendar(){
  for(const [pm,d]of Object.entries(S().transfers))for(const t of d.items||[]){const x=t.actual;if(x?.date?.slice(0,7)===m)events.push(x);else if(!x&&pm===m&&!A.locked(m))events.push({date:m+'-01',amount:Number(t.amount),from:t.from,to:t.to});}
  for(const t of Object.values(S().fxTransfers||{}))if(t.date.slice(0,7)===m&&(t.status!=='planned'||!A.locked(m))){if(t.from.startsWith('legacy:'))events.push({date:t.date,from:t.from.slice(7),amount:Number(t.sourceAmount)+Number(t.fee||0)});if(t.to.startsWith('legacy:'))events.push({date:t.date,to:t.to.slice(7),amount:Number(t.receivedAmount)});}
  const daily=D.dailyCash({month:m,opening,events,minimums,creditAccounts:C().accs.filter(a=>a.kind==='Credit').map(a=>a.id)}),low=daily.reduce((a,b)=>a.cash<b.cash?a:b),risk=daily.find(r=>r.below.length);
- return panel('Daily cash forecast · '+m,'<p>This table covers legacy INR accounts; use Currency accounts for foreign balances and budgets. Estimated from recorded transactions and the remaining monthly plan. Future opening balances can include earlier projections. Missing dates assume spending on day 1 and income on the last day; planned transfers use day 1. These assumptions can change the result.</p><p>Lowest projected liquid cash: <b>'+fmt(low.cash)+' on '+low.date+'</b>. '+(risk?'First account below its minimum: '+risk.date+' ('+risk.below.map(id=>esc(S().accounts[id]?.name)).join(', ')+').':'No projected minimum-balance shortfall.')+'</p>'+rowsTable(['Plan row','Assumed date',''],cats.map(c=>[esc(c.name),c.dueDay?due(c):due(c)+' (assumed)',btn('due-edit','Set date','data-id="'+c.id+'"')]))+rowsTable(['Date','Liquid cash',...C().accs.map(a=>esc(a.name))],daily.map(r=>[r.date,fmt(r.cash),...C().accs.map(a=>fmt(r.balances[a.id]))])));
+ return panel('Daily cash forecast · '+m,'<p>This table covers your INR accounts. Foreign accounts are under Multi-currency accounts. Estimated from recorded transactions and the remaining monthly plan. Future opening balances can include earlier projections. Missing dates assume spending on day 1 and income on the last day; planned transfers use day 1. These assumptions can change the result.</p><p>Lowest projected liquid cash: <b>'+fmt(low.cash)+' on '+low.date+'</b>. '+(risk?'First account below its minimum: '+risk.date+' ('+risk.below.map(id=>esc(S().accounts[id]?.name)).join(', ')+').':'No projected minimum-balance shortfall.')+'</p>'+rowsTable(['Plan row','Assumed date',''],cats.map(c=>[esc(c.name),c.dueDay?due(c):due(c)+' (assumed)',btn('due-edit','Set date','data-id="'+c.id+'"')]))+rowsTable(['Date','Liquid cash',...C().accs.map(a=>esc(a.name))],daily.map(r=>[r.date,fmt(r.cash),...C().accs.map(a=>fmt(r.balances[a.id]))])));
 }
 function reminders(){
  const R=window.CashbookReminders,s=R.settings,bills=Object.values(S().categories).filter(c=>c.type!=='income'),missing=bills.filter(c=>!c.dueDay);
@@ -180,7 +180,7 @@ function conflicts(){
 }
 function plans(){
  return panel('Plans and family access','<p><b>Preview release — all current tools are available.</b> No payment will be collected in this build.</p>'+rowsTable(['Proposed plan','Price','Planned package'],[['Free','₹0','Manual tracking, monthly review, backups and exports'],['Plus','₹999/year or ₹129/month','Extended planning, scenarios, imports, business and net-worth tools']])+
- '<p>Encrypted family file exchange uses separate member keys, signed grants and recipient-scoped files. The owner reviews editor proposals; viewers cannot submit changes. Current personal Drive sync is separate and still uses the same Google account. Do not share your Google password.</p><p>Existing records and exports remain available. Purchase and restore adapters with server verification are available in Purchases & restore. Merchant/store accounts and real sandbox validation are still required before activation.</p>');
+ '<p>Share with family uses separate member keys, signed grants and recipient-scoped files. The owner reviews editor proposals; viewers cannot submit changes. Current personal Drive sync is separate and still uses the same Google account. Do not share your Google password.</p><p>Existing records and exports remain available. Purchase and restore adapters with server verification are available in Purchases & restore. Merchant/store accounts and real sandbox validation are still required before activation.</p>');
 }
 function more(){
  if(screen==='import'&&importDirty&&$('#im-file'))return;
@@ -191,7 +191,7 @@ function onboard(){CashbookGuide.tour(()=>CashbookLock.protect(()=>CashbookGuide
 async function action(t){
  const a=t.dataset.feature;
  if(a==='source-export'){await window.__cashbookLocal.exportSource();A.toast('Source exported. You can now restore a verified backup.');return;}
- if(a==='recover-restore'){const f=$('#recover-file').files[0];if(!f)throw Error('Choose a backup.');if(!confirm('Replace the unreadable ledger with this backup? Export the original source first.'))return;await window.__cashbookLocal.importData(await f.text(),$('#recover-pass').value);location.reload();return;}
+ if(a==='recover-restore'){const f=$('#recover-file').files[0];if(!f)throw Error('Choose a backup.');if(!confirm('Replace the unreadable records with this backup? Export the original source first.'))return;await window.__cashbookLocal.importData(await f.text(),$('#recover-pass').value);location.reload();return;}
  if(a==='unlock'){await window.__cashbookLocal.unlock($('#unlock-pass').value);$('#unlock-pass')?.blur();return;}
  if(a==='sec-enable'){const p=$('#sec-ledger').value;if(p!==$('#sec-ledger-confirm').value)throw Error('Passphrases do not match.');if(!confirm('Enable encryption for future saved copies? Older plaintext backups remain readable. A lost passphrase cannot be recovered.'))return;await window.__cashbookLocal.encryptLedger(p);$('#sec-ledger').value='';$('#sec-ledger-confirm').value='';A.toast('Working ledger encrypted. Keep the passphrase separately.');return;}
  if(a==='rem-on'){await CashbookReminders.turnOn();A.toast('Reminders are on.');A.go('more');return;}
@@ -228,8 +228,8 @@ async function action(t){
  if(a==='sec-restore'){
   const f=$('#sec-file').files[0];if(!f)throw Error('Choose an encrypted backup.');if(f.size>20e6)throw Error('Backup is too large.');
   const raw=await CashbookSecurity.open(await f.text(),$('#sec-restore-pass').value),obj=JSON.parse(raw);
-  if(obj.app!=='family-cashbook'||!obj.docs)throw Error('Not a Family Cashbook ledger.');
-  if(!confirm('Replace this device’s ledger with '+Object.keys(obj.docs).length+' records? A recovery export of the current ledger will be offered first. The restored ledger will sync to connected devices.'))return;
+  if(obj.app!=='family-cashbook'||!obj.docs)throw Error('This file is not a Family Money backup.');
+  if(!confirm('Replace the records on this device with '+Object.keys(obj.docs).length+' records? A recovery copy of your current records will be offered first. The restored records will sync to connected devices.'))return;
   await window.__cashbookLocal.importData(raw);$('#sec-restore-pass').value='';A.toast('Backup restored.');A.go('overview');return;
  }
  if(a==='conflict-dismiss'){await window.__cashbookLocal.clearConflict(t.dataset.key);more();return;}
@@ -254,16 +254,16 @@ async function action(t){
   const actual=A.actualComputed(),accounts=C().accs.map(a=>({accountId:a.id,expected:actual.rows[a.id][m].calc,confirmed:Number(S().balances[m]?.values?.[a.id]),difference:actual.rows[a.id][m].diff}));
   if((!accounts.length&&!Object.keys(S().fxAccounts||{}).length)||accounts.some(r=>!Number.isFinite(r.confirmed)||S().balances[m]?.values?.[r.accountId]==null||S().balances[m]?.values?.[r.accountId]===''))throw Error('Enter every account balance.');
   const reason=$('#close-reason').value.trim();if(accounts.some(r=>Math.abs(r.difference)>0.005)&&!reason)throw Error('Explain the differences before closing.');
-  const stamp=new Date().toISOString();if(!A.db().applyBatch)throw Error('This adapter does not support atomic month review.');
+  const stamp=new Date().toISOString();if(!A.db().applyBatch)throw Error('Please update the app and try again.');
   await A.db().applyBatch([{type:'set',path:'features/'+id(),data:{type:'audit',action:'month-close',month:m,by:A.uid(),identityType:'local-device',at:stamp,accounts,reason,currencyReconciliations:Object.values(S().fxBalances||{}).filter(r=>r.date.slice(0,7)===m)}},{type:'update',path:'settings/main',data:{closedThrough:m,closedAt:stamp,closedBy:A.uid()}}]);A.close();A.go('month');return;
  }
  if(a==='ob-save'){
-  if(S().settings)throw Error('A ledger already exists. Use Accounts & setup to edit it.');
+  if(S().settings)throw Error('You have already started. Use Accounts & backup to make changes.');
   const start=$('#ob-start').value;if(!/^\d{4}-\d{2}$/.test(start))throw Error('Choose the starting month.');
   const name=$('#ob-name').value.trim();if(!name)throw Error('Name your account.');
   const income=positive('#ob-income',true),expense=positive('#ob-expense',true),balance=num('#ob-balance'),account=id(),months=[];
   for(let i=0;i<24;i++){const d=new Date(start+'-01T12:00:00');d.setMonth(d.getMonth()+i);months.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'));}
-  if(!A.db().applyBatch)throw Error('This adapter does not support initial setup in one save.');
+  if(!A.db().applyBatch)throw Error('Please update the app and try again.');
   const ops=[{type:'set',path:'accounts/'+account,data:{name,opening:balance,min:0,kind:'Savings',order:0}}];
   for(const [label,type,amount]of [['Monthly income','income',income],['Household budget','expense',expense]])if(amount)ops.push({type:'set',path:'categories/'+id(),data:{name:label,type,group:type==='income'?'Income':'Household',account,forecastMode:'budget',amounts:Object.fromEntries(months.map(m=>[m,amount]))}});
   ops.push({type:'set',path:'settings/main',data:{start,end:months.at(-1),currency:'INR'}});await A.db().applyBatch(ops);A.close();A.go('overview');CashbookGuide.afterStart();return;
@@ -283,7 +283,7 @@ function lockScreen(){
 }
 document.addEventListener('change',e=>{if(e.target.id==='im-file')importDirty=true;if(e.target.id==='rem-before')CashbookReminders.change({before:Number(e.target.value)});if(e.target.id==='rem-hide')CashbookReminders.change({hide:e.target.checked});if(e.target.id==='sec-autolock')window.__cashbookLocal.setAutolock(Number(e.target.value)).then(()=>A.toast('Saved.'));});
 function recoveryScreen(){
- $('#view').innerHTML=panel('Saved ledger could not be read','<p>Editing is blocked to protect the original data. Export the unreadable source first, then restore a known backup. Nothing is overwritten until the backup validates.</p>'+btn('source-export','Export original source')+'<label class="f">Verified backup<input type="file" id="recover-file" accept=".json"></label>'+field('Passphrase, for encrypted backups','recover-pass','password')+btn('recover-restore','Restore backup'));$('#fab').hidden=true;
+ $('#view').innerHTML=panel('Your saved records could not be read','<p>Editing is blocked to protect the original data. Export the unreadable source first, then restore a known backup. Nothing is overwritten until the backup validates.</p>'+btn('source-export','Export original source')+'<label class="f">Verified backup<input type="file" id="recover-file" accept=".json"></label>'+field('Passphrase, for encrypted backups','recover-pass','password')+btn('recover-restore','Restore backup'));$('#fab').hidden=true;
 }
 window.CashbookUI={run:k=>action({dataset:{feature:k}}),toast:m=>A.toast(m),refresh:()=>A.refresh(),reset:()=>{screen="menu";},recoveryScreen,attach:api=>{A=api;window.CashbookReminders?.attach(api);window.CashbookFamilyUI?.attach(api);window.CashbookCurrencyUI?.attach(api);window.CashbookBillingUI?.attach(api);window.CashbookCompanion?.attach(api);window.CashbookGuide?.attach(api);},get busy(){return operations>0||!!window.CashbookGuide?.busy||!!window.CashbookCompanion?.busy||!!window.CashbookFamilyUI?.busy||!!window.CashbookCurrencyUI?.busy||!!window.CashbookBillingUI?.busy;},afterRender,more,onboard,lockScreen};
 })();

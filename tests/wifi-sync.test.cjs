@@ -260,7 +260,7 @@ test("an unrelated existing phone ledger cannot be silently paired", async () =>
       .doc("settings/main")
       .set({ start: "2025-01", end: "2025-12" });
     const qr = await d.laptop.showQR();
-    await assert.rejects(d.mobile.scan(qr), /separate ledger/);
+    await assert.rejects(d.mobile.scan(qr), /its own records/);
     assert.equal(d.laptop.state().pending, null);
   } finally {
     await d.stop();
@@ -270,7 +270,7 @@ test("local pairing requires encryption, excludes family ledgers and disallows s
   const h = harness({ initial: seed });
   await h.db;
   const c = create({ store: h.api, request: () => {} });
-  await assert.rejects(c.refresh(), /passphrase/);
+  await assert.rejects(c.refresh(), /PIN/);
   await h.api.encryptLedger(password);
   const db = await h.db;
   await db.doc("family/main").set({ mode: "owner" });

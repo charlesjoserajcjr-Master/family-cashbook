@@ -1,9 +1,9 @@
 {
   "name": "family-cashbook-desktop",
-  "productName": "Family Cashbook",
+  "productName": "ReadyTrove Family Money",
   "version": "1.0.0",
-  "description": "Family Cashbook for Windows: plan, track and forecast your family's money, fully offline.",
-  "author": "Charles",
+  "description": "ReadyTrove Family Money for Windows: plan, track and forecast your family's money, fully offline.",
+  "author": "READYTROVE TECHNOLOGIES",
   "private": true,
   "main": "main.js",
   "scripts": {
@@ -16,7 +16,7 @@
   },
   "build": {
     "appId": "com.familycashbook.desktop",
-    "productName": "Family Cashbook",
+    "productName": "ReadyTrove Family Money",
     "directories": {
       "output": "dist",
       "buildResources": "build"
@@ -40,11 +40,11 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Family Cashbook",
-      "artifactName": "Family-Cashbook-Setup-${version}.${ext}"
+      "shortcutName": "ReadyTrove Family Money",
+      "artifactName": "Family-Money-Setup-${version}.${ext}"
     },
     "portable": {
-      "artifactName": "Family-Cashbook-Portable-${version}.${ext}"
+      "artifactName": "Family-Money-Portable-${version}.${ext}"
     }
   }
 }

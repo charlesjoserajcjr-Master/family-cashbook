@@ -92,12 +92,12 @@ async function setup(browser, url, name) {
     async (pass) => window.__cashbookLocal.encryptLedger(pass),
     working
   );
-  await tool(page, 'Encrypted family file sync');
+  await tool(page, 'Share with family');
   await page.locator('#fam-name').fill(name);
   await page.locator('#fam-password').fill(memberPass);
   await page.locator('#fam-confirm').fill(memberPass);
   await page
-    .getByRole('button', { name: 'Create my member key', exact: true })
+    .getByRole('button', { name: 'Create my sharing key', exact: true })
     .click();
   await page
     .getByRole('button', { name: 'Share my invitation request', exact: true })
@@ -132,7 +132,7 @@ async function download(page, button) {
       member = await setup(browser, url, 'Editor');
     await owner.page
       .getByRole('button', {
-        name: 'Create a family ledger as owner',
+        name: 'Start sharing as the owner',
         exact: true
       })
       .click();
@@ -183,7 +183,7 @@ async function download(page, button) {
       .getByRole('button', { name: 'Accept reviewed file', exact: true })
       .click();
     await member.page
-      .getByRole('heading', { name: 'Shared ledger · editor', exact: true })
+      .getByRole('heading', { name: 'Shared records · editor', exact: true })
       .waitFor();
     const shared = await member.page.evaluate(
       async () => (await window.__cashbookLocal.getSnapshot()).docs

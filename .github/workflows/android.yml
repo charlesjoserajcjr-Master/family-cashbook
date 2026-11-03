@@ -71,12 +71,12 @@ jobs:
         run: |
           mkdir -p out
           if [ -f android/app/build/outputs/apk/release/app-release.apk ]; then
-            cp android/app/build/outputs/apk/release/app-release.apk "out/Family-Cashbook-test-${{ github.run_number }}.apk"
+            cp android/app/build/outputs/apk/release/app-release.apk "out/Family-Money-test-${{ github.run_number }}.apk"
           else
-            cp android/app/build/outputs/apk/debug/app-debug.apk "out/Family-Cashbook-test-${{ github.run_number }}.apk"
+            cp android/app/build/outputs/apk/debug/app-debug.apk "out/Family-Money-test-${{ github.run_number }}.apk"
           fi
           if [ -f android/app/build/outputs/bundle/release/app-release.aab ]; then
-            cp android/app/build/outputs/bundle/release/app-release.aab "out/Family-Cashbook-${{ github.run_number }}.aab"
+            cp android/app/build/outputs/bundle/release/app-release.aab "out/Family-Money-${{ github.run_number }}.aab"
           fi
           ls -la out
 

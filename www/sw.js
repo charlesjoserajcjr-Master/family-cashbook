@@ -22,6 +22,6 @@ self.addEventListener('fetch', e => {
     if(cached&&CORE.some(p=>new URL(p,self.location.href).pathname===new URL(typeof key==='string'?key:key.url,self.location.href).pathname))return cached;
     const fresh = fetch(req).then(res => { if (res.ok) cache.put(key, res.clone()); return res; }).catch(() => null);
     if (cached) { e.waitUntil(fresh); return cached; }
-    return (await fresh) || new Response('Offline and not saved yet. Open Family Cashbook once while online.', { status: 503, headers: { 'Content-Type': 'text/plain' } });
+    return (await fresh) || new Response('Offline and not saved yet. Open Family Money once while online.', { status: 503, headers: { 'Content-Type': 'text/plain' } });
   }));
 });

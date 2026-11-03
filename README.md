@@ -23,7 +23,7 @@ GitHub builds the app for you. No Mac is needed, not even for iPhone.
 3. Open the finished run and download **upload-key-DOWNLOAD-AND-KEEP-SAFE** (deleted after 1 day).
    Keep `familycashbook-upload.jks` and the password in two safe places. Losing it means you cannot update the app.
 4. Add a second secret: name `ANDROID_KEYSTORE_BASE64`, value: the whole text of `familycashbook-upload-key-base64.txt`.
-5. **Actions → Build Android app → Run workflow.** This build also makes `Family-Cashbook-N.aab`
+5. **Actions → Build Android app → Run workflow.** This build also makes `Family-Money-N.aab`
    (in the run's *Artifacts* zip). That `.aab` is what you upload to Google Play.
 
 ## iPhone
@@ -36,7 +36,7 @@ App Store signing and upload get added once the Apple Developer account (paid ye
 
 Windows builds are manual (**Actions → Build Windows desktop app → Run workflow**). Leave **publish** off for build-only checks; publishing requires an explicit main-branch run with **publish** enabled.
 On the **Releases** page, open the newest *Windows desktop app* and download
-`Family-Cashbook-Setup-….exe` (installs with Start-menu and desktop shortcuts) or the Portable `.exe`
+`Family-Money-Setup-….exe` (installs with Start-menu and desktop shortcuts) or the Portable `.exe`
 (runs without installing, e.g. from a USB stick). It needs no internet at all. The ledger is saved as
 `Documents\Family Cashbook\family-cashbook-data.json`, with a dated copy in `Backups` every day;
 **Accounts & setup → Change folder…** can move it (e.g. into a Google Drive or OneDrive folder).
