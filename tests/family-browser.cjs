@@ -72,7 +72,7 @@ async function setup(browser, url, name) {
       acceptDownloads: true,
       serviceWorkers: 'block'
     }),
-    page = await context.newPage(),
+    page = await (await context.addInitScript(()=>{window.CASHBOOK_TEST_SKIP_PIN=true;}),context).newPage(),
     errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.addInitScript(

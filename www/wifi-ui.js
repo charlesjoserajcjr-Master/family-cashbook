@@ -84,7 +84,9 @@
     if (!L.encrypted || L.locked)
       return (
         out +
-        '<p>First protect this device’s records and pairing keys. Choose a passphrase you can remember; it cannot be recovered. Each device may use its own passphrase.</p><div class="form"><label class="f">Device passphrase (12+ characters)<input id="wifi-pass" type="password" autocomplete="new-password"></label><label class="f">Confirm passphrase<input id="wifi-confirm" type="password" autocomplete="new-password"></label></div>' +
+        (window.CASHBOOK_TEST_SKIP_PIN
+          ? '<div class="form"><label class="f">Device passphrase (12+ characters)<input id="wifi-pass" type="password" autocomplete="new-password"></label><label class="f">Confirm passphrase<input id="wifi-confirm" type="password" autocomplete="new-password"></label></div>'
+          : "<p>First protect this device with a PIN. Each device has its own PIN.</p>") +
         button("protect", "Protect this device", actionBusy)
       );
     if (window.cashbookDesktop?.wifiStart) {
@@ -202,7 +204,10 @@
     actionBusy = true;
     t.disabled = true;
     try {
-      if (action === "protect") {
+      if (action === "protect" && !window.CASHBOOK_TEST_SKIP_PIN) {
+        A.close();
+        await window.CashbookLock.protect(() => window.CashbookCompanion?.open?.());
+      } else if (action === "protect") {
         const pass = $("#wifi-pass").value;
         if (pass !== $("#wifi-confirm").value)
           throw Error("Passphrases do not match.");
@@ -218,7 +223,7 @@
       }
       if (action === "stop") await c.stop();
       if (action === "scan") {
-        const value = await window.CashbookScanner.scan();
+        const value = await window.__cashbookLocal.hold(() => window.CashbookScanner.scan());
         if (!value) return;
         await c.scan(
           value,

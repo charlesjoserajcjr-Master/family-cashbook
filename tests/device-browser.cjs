@@ -64,7 +64,7 @@ const seed = {
         serviceWorkers: "block",
       });
       contexts.push(context);
-      const page = await context.newPage();
+      const page = await (await context.addInitScript(()=>{window.CASHBOOK_TEST_SKIP_PIN=true;}),context).newPage();
       page.on("pageerror", (error) => errors.push(error.message));
       page.on("dialog", (d) => d.accept());
       await page.addInitScript((initial) => {

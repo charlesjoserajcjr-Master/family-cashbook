@@ -3,6 +3,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('cashbookDesktop', {
   onBeforeClose: callback => ipcRenderer.on('data:before-close',()=>callback()),
   closeReady: ok => ipcRenderer.send('data:close-ready',ok===true),
+  deviceWrap:data=>ipcRenderer.invoke('key:wrap',data),
+  deviceUnwrap:data=>ipcRenderer.invoke('key:unwrap',data),
   readDeviceVault:()=>ipcRenderer.invoke('devices:read'),
   writeDeviceVault:text=>ipcRenderer.invoke('devices:write',text),
   wifiStart:()=>ipcRenderer.invoke('wifi:start'),

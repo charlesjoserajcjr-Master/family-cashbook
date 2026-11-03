@@ -48,7 +48,7 @@ function menu(){
  return panel('More','<p>Choose the tools you need. Your data stays available without a subscription.</p><div class="tool-grid">'+[
  ['guide','Setup guide & user manual'],['month','Monthly review'],['loans','Loans & EMIs'],['networth','Net worth'],['business','Businesses'],['setup','Accounts & backup'],
  ['companion','Phone & laptop sync'],['calendar','Bills calendar'],['goals','Savings goals'],['scenarios','What-if scenarios'],['prepay','Loan prepayment'],['import','Statement import'],
- ['contract','Contract income & currency conversion'],['card','Add credit card'],['security','Privacy & encrypted backups'],['conflicts','Sync history'],['plans','Plans & family access'],['family','Encrypted family file sync'],['currency','Multi-currency accounts & remittances'],['billing','Purchases & restore']
+ ['contract','Contract income & currency conversion'],['card','Add credit card'],['security','PIN, recovery code and lock'],['conflicts','Sync history'],['plans','Plans & family access'],['family','Encrypted family file sync'],['currency','Multi-currency accounts & remittances'],['billing','Purchases & restore']
  ].map(([k,v])=>btn(k,v)).join('')+'</div>');
 }
 function scenarios(){
@@ -143,6 +143,12 @@ function contractInput(){
  return {name:$('#ct-name').value.trim()||'Contract salary',type:'income',group:'Income',account:$('#ct-account').value,forecastMode:'budget',amounts,sourceCurrency:$('#ct-currency').value.toUpperCase(),sourceAmount:salary,exchangeRate:rate,conversionFee:fee};
 }
 function security(){
+ const L=window.__cashbookLocal;
+ if(L.encrypted&&L.lockInfo().set){
+  const info=L.lockInfo(),opt=(v,t)=>'<option value="'+v+'"'+(info.autolock===v?' selected':'')+'>'+t+'</option>';
+  return panel('PIN, recovery code and lock','<p><b>Your records are encrypted on this device.</b> Your PIN opens them here. Your recovery code and a backup file bring them back on any device. ReadyTrove cannot reset either one.</p>'+(info.keyId?'<p class="hint">Recovery code ID '+esc(info.keyId)+'. Your backups show this ID.</p>':'')+
+  '<div class="row">'+btn('sec-lock','Lock now')+btn('sec-pin','Change PIN')+(info.keyId?btn('sec-code','Make a new recovery code'):'')+'</div><label class="f">Lock after leaving the app<select id="sec-autolock">'+opt(0,'Immediately')+opt(60,'1 minute')+opt(300,'5 minutes')+opt(900,'15 minutes')+'</select></label><hr><button class="btn" data-guide="restore">Restore a backup</button>');
+ }
  return panel('Privacy and recovery','<p>Working-ledger encryption is optional. While enabled, the saved ledger and new Drive uploads are encrypted with your passphrase. Unlock after opening the app; use Lock now before leaving a shared device. Earlier plaintext files and backups remain readable until you deliberately migrate or delete them. Encryption does not provide separate family permissions.</p>'+btn('sec-lock','Lock now')+
  '<div class="form">'+field('Working-ledger passphrase (12+ characters)','sec-ledger','password','','autocomplete="new-password"')+field('Confirm working-ledger passphrase','sec-ledger-confirm','password','','autocomplete="new-password"')+'</div>'+btn('sec-enable','Enable working-ledger encryption')+'<p>Export and verify a backup first, then disconnect Drive before enabling encryption. Keep the passphrase separately; a lost passphrase cannot be reset. Use the same passphrase for encrypted sync on your other devices.</p>'+
  '<div class="form">'+field('Backup passphrase (12+ characters)','sec-pass','password','','autocomplete="new-password" minlength="12"')+field('Confirm passphrase','sec-confirm','password','','autocomplete="new-password"')+'</div>'+btn('sec-export','Export encrypted backup')+
@@ -161,7 +167,7 @@ function more(){
  if(screen==='import'&&importDirty&&$('#im-file'))return;
  const active=$('#view'),results={};if(active?.dataset.screen===screen)for(const key of ['pp-result','sc-result']){const el=document.getElementById(key);if(el)results[key]=el.innerHTML;}if(active&&active.dataset.screen===screen){const values={};for(const e of active.querySelectorAll('input[id],select[id],textarea[id]'))if(e.type!=='file'&&e.type!=='password')values[e.id]={value:e.value,checked:e.checked};drafts.set(screen,values);}
  const views={menu,guide:()=>CashbookGuide.render(),companion:()=>CashbookCompanion.render(),scenarios,goals,prepay,calendar,import:importScreen,contract,security,conflicts,plans,family:()=>CashbookFamilyUI.render(),currency:()=>CashbookCurrencyUI.render(),billing:()=>CashbookBillingUI.render()};$('#view').innerHTML=(views[screen]||menu)();$('#view').dataset.screen=screen;for(const [key,value]of Object.entries(drafts.get(screen)||{})){const e=document.getElementById(key);if(e){e.value=value.value;e.checked=value.checked;}}for(const [key,html]of Object.entries(results)){const el=document.getElementById(key);if(el)el.innerHTML=html;}}
-function onboard(){CashbookGuide.fresh();}
+function onboard(){CashbookLock.protect(()=>CashbookGuide.fresh(),{cancel:()=>A.go('overview')});}
 
 async function action(t){
  const a=t.dataset.feature;
@@ -169,6 +175,8 @@ async function action(t){
  if(a==='recover-restore'){const f=$('#recover-file').files[0];if(!f)throw Error('Choose a backup.');if(!confirm('Replace the unreadable ledger with this backup? Export the original source first.'))return;await window.__cashbookLocal.importData(await f.text(),$('#recover-pass').value);location.reload();return;}
  if(a==='unlock'){await window.__cashbookLocal.unlock($('#unlock-pass').value);$('#unlock-pass')?.blur();return;}
  if(a==='sec-enable'){const p=$('#sec-ledger').value;if(p!==$('#sec-ledger-confirm').value)throw Error('Passphrases do not match.');if(!confirm('Enable encryption for future saved copies? Older plaintext backups remain readable. A lost passphrase cannot be recovered.'))return;await window.__cashbookLocal.encryptLedger(p);$('#sec-ledger').value='';$('#sec-ledger-confirm').value='';A.toast('Working ledger encrypted. Keep the passphrase separately.');return;}
+ if(a==='sec-pin'){CashbookLock.changePin();return;}
+ if(a==='sec-code'){CashbookLock.replaceCode();return;}
  if(a==='sec-lock'){await window.__cashbookLocal.lock();return;}
  if(a==='cancel'){A.close();return;}
  if(['month','loans','networth','business','setup'].includes(a)){A.go(a);return;}
@@ -248,11 +256,12 @@ window.addEventListener('cashbook-save',e=>{
  const state=e.detail.state;box.innerHTML=state==='error'?'<strong>Not saved:</strong> '+esc(e.detail.message)+' '+btn('retry-save','Retry save'):state==='saving'?'Saving…':'Saved on this device';
 });
 function lockScreen(){
- $('#view').innerHTML=panel('Unlock Family Cashbook','<p>Your saved ledger is encrypted. Enter its passphrase to open it. ReadyTrove cannot recover a lost passphrase.</p>'+field('Passphrase','unlock-pass','password','','autocomplete="current-password"')+btn('unlock','Unlock'));$('#fab').hidden=true;$('#unlock-pass').focus();
+ if(window.__cashbookLocal.lockInfo().set){$('#fab').hidden=true;window.CashbookLock.pinScreen();return;}
+ $('#view').innerHTML=panel('Unlock Family Money','<p>Your records are encrypted. Enter your recovery code or passphrase to open them. ReadyTrove cannot recover it.</p>'+field('Recovery code or passphrase','unlock-pass','password','','autocomplete="current-password"')+btn('unlock','Unlock'));$('#fab').hidden=true;$('#unlock-pass').focus();
 }
-document.addEventListener('change',e=>{if(e.target.id==='im-file')importDirty=true;});
+document.addEventListener('change',e=>{if(e.target.id==='im-file')importDirty=true;if(e.target.id==='sec-autolock')window.__cashbookLocal.setAutolock(Number(e.target.value)).then(()=>A.toast('Saved.'));});
 function recoveryScreen(){
  $('#view').innerHTML=panel('Saved ledger could not be read','<p>Editing is blocked to protect the original data. Export the unreadable source first, then restore a known backup. Nothing is overwritten until the backup validates.</p>'+btn('source-export','Export original source')+'<label class="f">Verified backup<input type="file" id="recover-file" accept=".json"></label>'+field('Passphrase, for encrypted backups','recover-pass','password')+btn('recover-restore','Restore backup'));$('#fab').hidden=true;
 }
-window.CashbookUI={reset:()=>{screen="menu";},recoveryScreen,attach:api=>{A=api;window.CashbookFamilyUI?.attach(api);window.CashbookCurrencyUI?.attach(api);window.CashbookBillingUI?.attach(api);window.CashbookCompanion?.attach(api);window.CashbookGuide?.attach(api);},get busy(){return operations>0||!!window.CashbookGuide?.busy||!!window.CashbookCompanion?.busy||!!window.CashbookFamilyUI?.busy||!!window.CashbookCurrencyUI?.busy||!!window.CashbookBillingUI?.busy;},afterRender,more,onboard,lockScreen};
+window.CashbookUI={toast:m=>A.toast(m),refresh:()=>A.refresh(),reset:()=>{screen="menu";},recoveryScreen,attach:api=>{A=api;window.CashbookFamilyUI?.attach(api);window.CashbookCurrencyUI?.attach(api);window.CashbookBillingUI?.attach(api);window.CashbookCompanion?.attach(api);window.CashbookGuide?.attach(api);},get busy(){return operations>0||!!window.CashbookGuide?.busy||!!window.CashbookCompanion?.busy||!!window.CashbookFamilyUI?.busy||!!window.CashbookCurrencyUI?.busy||!!window.CashbookBillingUI?.busy;},afterRender,more,onboard,lockScreen};
 })();

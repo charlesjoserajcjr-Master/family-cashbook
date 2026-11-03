@@ -65,7 +65,7 @@ test("encrypted backup restore asks for the original passphrase and keeps the ne
   );
   await assert.rejects(
     h.api.inspectBackup(encrypted),
-    /original backup passphrase/,
+    /recovery code or passphrase/,
   );
   await assert.rejects(
     h.api.inspectBackup(encrypted, "wrong password"),
