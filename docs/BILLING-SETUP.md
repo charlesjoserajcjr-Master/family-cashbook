@@ -46,4 +46,4 @@ References: https://razorpay.com/docs/webhooks/validate-test/ ; https://razorpay
 
 ## Family Money by RT Plus
 
-Price: ₹799 a year with a 7-day store trial (₱549 and US$19.99 elsewhere). In `www/config.js` set `purchasesEnabled: true` and the RevenueCat public keys, and create the `money_plus` entitlement with a yearly product and trial offer. Until then every tool stays unlocked. `www/plan.js` reads the store directly on Android and iPhone; Windows and the web stay unlocked until website payments are live. A lapsed user keeps all records, and tools they already use for businesses, foreign accounts and family sharing stay open.
+Price: ₹799 a year with no free trial (₱549 and US$19.99 elsewhere). In `www/config.js` set `purchasesEnabled: true` and the RevenueCat public keys, and create the `money_plus` entitlement with a yearly product. Do not add a trial offer. Until then every tool stays unlocked. `www/plan.js` reads the store directly on Android and iPhone; Windows and the web stay unlocked until website payments are live. A lapsed user keeps all records, and tools they already use for businesses, foreign accounts and family sharing stay open.

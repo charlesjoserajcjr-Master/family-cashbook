@@ -181,7 +181,7 @@ function conflicts(){
 }
 function plans(){
  const P=window.CashbookPlan,on=P.has();
- return panel(P.NAME,(on?'<p><b>'+P.NAME+' is active on this device.</b></p>':'<p>7 days free, then ₹799 a year. The store shows your final price before you pay.</p><button class="btn primary" data-plan="open">See the plan</button>')+'<h3>Free</h3><p>Accounts, credit cards, transactions, monthly plan and forecast, monthly review, loans and EMIs, bill reminders, savings goals, net worth, PIN, backups and exports.</p><h3>'+P.NAME+'</h3><p>Bank statement import, Wi-Fi phone and laptop sync, sharing with family, what-if scenarios, loan prepayment comparison, businesses, foreign accounts, remittances and contract income.</p><p class="hint">If a plan ends, you keep all your records.</p>');
+ return panel(P.NAME,(on?'<p><b>'+P.NAME+' is active on this device.</b></p>':'<p>₹799 a year. The store shows your final price before you pay.</p><button class="btn primary" data-plan="open">See the plan</button>')+'<h3>Free</h3><p>Accounts, credit cards, transactions, monthly plan and forecast, monthly review, loans and EMIs, bill reminders, savings goals, net worth, PIN, backups and exports.</p><h3>'+P.NAME+'</h3><p>Bank statement import, Wi-Fi phone and laptop sync, sharing with family, what-if scenarios, loan prepayment comparison, businesses, foreign accounts, remittances and contract income.</p><p class="hint">If a plan ends, you keep all your records.</p>');
 }
 function more(){
  if(screen==='import'&&importDirty&&$('#im-file'))return;

@@ -1,5 +1,5 @@
 /* Family Money by RT Plus on the phone apps. Limits apply only once purchases are switched on in config.js.
-   Google Play or the App Store handles the purchase and the 7-day trial; records stay available when a plan ends. */
+   Google Play or the App Store handles the purchase, there is no free trial, and records stay available when a plan ends. */
 (function(){
 'use strict';
 const KEY='fcb-plan',GRACE=3*864e5,CLOCK=36e5,NAME='Family Money by RT Plus';
@@ -32,7 +32,6 @@ function allow(feature){
  if(LOOSE[feature]?.(A.state()))return true;
  show(LABELS[feature]);return false;
 }
-const intro=pk=>{const i=pk?.product?.introPrice;if(!i||Number(i.price)!==0)return '';const u=String(i.periodUnit||'').toLowerCase(),n=i.periodNumberOfUnits||1;return n+' '+u+(n>1?'s':'')+' free, then ';};
 const LIST='<ul><li>Bank statement import</li><li>Wi-Fi sync between your phone and laptop</li><li>Sharing with family</li><li>What-if scenarios and loan prepayment comparison</li><li>Businesses</li><li>Foreign accounts, remittances and contract income</li></ul>';
 function body(what){
  return '<h2>'+NAME+'</h2>'+(what?'<p>'+esc(what)+' is part of '+NAME+'.</p>':'')+LIST+'<p class="hint">Your accounts, plan, forecast, loans, reminders, savings goals, net worth, backups and exports stay free. If a plan ends, you keep all your records.</p><div id="plan-buy"><p class="hint">Loading the price…</p></div><button class="btn" data-plan="close">Not now</button>';
@@ -43,7 +42,7 @@ async function fill(){
  try{
   const o=await P.getOfferings();packs=o?.current?.availablePackages||[];
   if(!packs.length){box.innerHTML=none;return;}
-  box.innerHTML=packs.map((x,i)=>'<button class="btn primary" data-plan="buy" data-i="'+i+'">'+esc(intro(x))+esc(x.product.priceString)+' a year</button>').join('')+'<p class="hint">Renews every year until you cancel it in your store subscriptions. A free trial is one per account and ends with the first payment unless you cancel before then.</p><button class="btn" data-plan="restore">Restore purchase</button>';
+  box.innerHTML=packs.map((x,i)=>'<button class="btn primary" data-plan="buy" data-i="'+i+'">'+esc(x.product.priceString)+' a year</button>').join('')+'<p class="hint">Renews every year until you cancel it in your store subscriptions.</p><button class="btn" data-plan="restore">Restore purchase</button>';
  }catch{box.innerHTML=none;}
 }
 function show(what){A.modal(body(what));fill();}

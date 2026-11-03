@@ -156,17 +156,17 @@ const set = async (p, pin = PIN) => { await p.locator("#pin-new").fill(pin); awa
     fs.copyFileSync(file, "test-artifacts/family-money-handover.pdf");
     await ho.p.locator("#ho-told").check(); await ho.p.getByText("Your family handover is complete").waitFor();
     assert.deepEqual(ho.errors, []);
-    // Plus: free tools stay open, a locked tool offers the trial, buying unlocks it, and a lapse keeps records.
+    // Plus: free tools stay open, a locked tool offers the plan, buying unlocks it, and a lapse keeps records.
     const buy = await fresh();
-    await buy.c.addInitScript(() => { window.CASHBOOK_TEST_SKIP_PIN = true; const info = (on) => ({ requestDate: new Date().toISOString(), entitlements: { active: on ? { money_plus: { expirationDate: new Date(Date.now() + 7 * 864e5).toISOString() } } : {} } }); window.__plusOn = false; window.CASHBOOK_TEST_PURCHASES = { configure: async () => {}, getCustomerInfo: async () => ({ customerInfo: info(window.__plusOn) }), getOfferings: async () => ({ current: { availablePackages: [{ product: { priceString: "₹799.00", introPrice: { price: 0, periodUnit: "DAY", periodNumberOfUnits: 7 } } }] } }), purchasePackage: async () => { window.__plusOn = true; return { customerInfo: info(true) }; }, restorePurchases: async () => ({ customerInfo: info(window.__plusOn) }) }; });
+    await buy.c.addInitScript(() => { window.CASHBOOK_TEST_SKIP_PIN = true; const info = (on) => ({ requestDate: new Date().toISOString(), entitlements: { active: on ? { money_plus: { expirationDate: new Date(Date.now() + 7 * 864e5).toISOString() } } : {} } }); window.__plusOn = false; window.CASHBOOK_TEST_PURCHASES = { configure: async () => {}, getCustomerInfo: async () => ({ customerInfo: info(window.__plusOn) }), getOfferings: async () => ({ current: { availablePackages: [{ product: { priceString: "₹799.00" } }] } }), purchasePackage: async () => { window.__plusOn = true; return { customerInfo: info(true) }; }, restorePurchases: async () => ({ customerInfo: info(window.__plusOn) }) }; });
     await buy.p.evaluate(() => localStorage.setItem("family-cashbook-data.json", JSON.stringify({ app: "family-cashbook", version: 2, docs: { "settings/main": { start: "2026-01", end: "2027-12", currency: "INR" }, "accounts/a": { name: "Home savings", opening: 900, min: 0, kind: "Savings", order: 0 } }, times: {}, tomb: {}, fieldMeta: {}, conflicts: {} })));
     await buy.p.reload(); await buy.p.getByRole("tab", { name: "More", exact: true }).click();
     await buy.p.getByRole("button", { name: "Net worth", exact: true }).click(); await buy.p.getByText("Everything the family owns").waitFor();
     await buy.p.getByRole("tab", { name: "More", exact: true }).click(); await buy.p.getByRole("button", { name: "All tools", exact: true }).click().catch(() => {});
     await buy.p.getByRole("button", { name: "Statement import · Plus", exact: true }).click();
     await buy.p.getByText("Statement import is part of Family Money by RT Plus.").waitFor();
-    await buy.p.getByRole("button", { name: "7 days free, then ₹799.00 a year", exact: true }).waitFor(); await shot(buy.p, "10-plus");
-    await buy.p.getByRole("button", { name: "7 days free, then ₹799.00 a year", exact: true }).click();
+    await buy.p.getByRole("button", { name: "₹799.00 a year", exact: true }).waitFor(); await shot(buy.p, "10-plus");
+    await buy.p.getByRole("button", { name: "₹799.00 a year", exact: true }).click();
     await buy.p.getByText("Family Money by RT Plus is on").waitFor();
     await buy.p.getByRole("button", { name: "Statement import", exact: true }).click(); await buy.p.getByText("Import a bank statement").waitFor();
     await buy.p.evaluate(() => { window.__plusOn = false; localStorage.removeItem("fcb-plan"); });
