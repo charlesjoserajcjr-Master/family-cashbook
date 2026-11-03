@@ -47,7 +47,7 @@ const server = http.createServer((req, res) => {
     );
     await page.goto("http://127.0.0.1:" + server.address().port);
     await page
-      .getByRole("button", { name: "Start a new ledger", exact: true })
+      .getByRole("button", { name: "Start fresh", exact: true })
       .click();
     await page.locator("#ob-name").fill("Native synthetic account");
     await page.locator("#ob-balance").fill("5000");

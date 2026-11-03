@@ -15,11 +15,12 @@ const { _android } = require("playwright"),
     const page = await view.page();
     activePage = page;
     await page
-      .getByRole("button", { name: "Start a new ledger", exact: true })
+      .getByRole("button", { name: "Start fresh", exact: true })
       .waitFor();
     await page
-      .getByRole("button", { name: "Start a new ledger", exact: true })
+      .getByRole("button", { name: "Start fresh", exact: true })
       .click();
+    await page.locator("#tour-skip").click();
     await page.locator("#pin-new").fill("907264");
     await page.locator("#pin-confirm").fill("907264");
     await page.locator("#pin-next").click();

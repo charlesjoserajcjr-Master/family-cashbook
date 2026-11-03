@@ -119,24 +119,18 @@ test("recovery export has a distinct filename and cancelling preserves the curre
   assert.match(offered, /^family-cashbook-recovery-before-restore-/);
   assert.equal(h.disk.get("family-cashbook-data.json"), original);
 });
-test("setup steps are sequential and skip/check markers do not mutate the ledger", () => {
-  const state = { accounts: { a: { name: "A" } }, entries: {}, fxEntries: {} };
-  assert.equal(Guide.checklist(state).find((s) => !s.done).id, "accounts");
-  const flags = {
-    accountsReviewed: true,
-    planReviewed: true,
-    entrySkipped: true,
-  };
-  assert.equal(Guide.checklist(state, flags).find((s) => !s.done).id, "backup");
+test("setup steps follow real progress and asked-for extras, and skipping changes no records", () => {
+  const next = (state, flags) => Guide.checklist(state, flags).find((s) => !s.done && !s.skipped)?.id;
+  const state = { accounts: { a: { name: "A" } }, categories: {}, entries: {}, fxEntries: {} };
+  assert.equal(next(state), "accounts");
+  assert.equal(next({ ...state, accounts: { a: {}, b: {} } }), "plan");
+  assert.deepEqual(Guide.checklist(state).map((s) => s.id), ["accounts", "plan", "entry", "backup"]);
+  const want = { cards: true, loans: true, foreign: true, business: true };
+  assert.deepEqual(Guide.checklist(state, { want }).map((s) => s.id), ["accounts", "cards", "plan", "loans", "foreign", "business", "entry", "backup"]);
+  assert.equal(next({ ...state, accounts: { a: {}, b: { kind: "Credit" } } }, { want: { cards: true } }), "plan");
+  const skip = { accounts: true, plan: true, entry: true };
+  assert.equal(next(state, { skip }), "backup");
   assert.equal(Object.keys(state.entries).length, 0);
-  flags.backupVerified = true;
-  flags.optionalReviewed = true;
-  assert.ok(Guide.checklist(state, flags).every((s) => s.done));
-  assert.equal(
-    Guide.checklist(
-      { ...state, entries: { one: {} } },
-      { accountsReviewed: true, planReviewed: true },
-    ).find((s) => !s.done).id,
-    "backup",
-  );
+  assert.equal(next(state, { skip, backupVerified: true }), undefined);
+  assert.equal(Guide.checklist({ ...state, entries: { one: {} } }, { skip }).find((s) => s.id === "entry").skipped, false);
 });

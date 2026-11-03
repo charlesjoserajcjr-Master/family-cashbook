@@ -125,13 +125,14 @@ const server = http.createServer((req, res) => {
         5000,
       );
       await page
-        .getByRole("button", { name: "Continue setup", exact: true })
+        .getByRole("button", { name: "See all steps", exact: true })
         .click();
       await page
-        .getByRole("button", { name: "I have reviewed this step", exact: true })
+        .getByRole("button", { name: "Skip", exact: true })
+        .last()
         .click();
       await page
-        .getByText("Step 2 of 5: Review monthly income and spending", {
+        .getByText("Step 2 of 4: Add your regular income and bills", {
           exact: true,
         })
         .waitFor();
@@ -140,10 +141,10 @@ const server = http.createServer((req, res) => {
         .click();
       await page.reload();
       await page
-        .getByRole("button", { name: "Continue setup", exact: true })
+        .getByRole("button", { name: "See all steps", exact: true })
         .click();
       await page
-        .getByText("Step 2 of 5: Review monthly income and spending", {
+        .getByText("Step 2 of 4: Add your regular income and bills", {
           exact: true,
         })
         .waitFor();
@@ -214,7 +215,7 @@ const server = http.createServer((req, res) => {
       );
       await newPage.goto(url);
       await newPage
-        .getByRole("button", { name: "Start a new ledger", exact: true })
+        .getByRole("button", { name: "Start fresh", exact: true })
         .click();
       await newPage.locator("#ob-name").fill("Fresh account");
       await newPage.locator("#ob-balance").fill("2000");
@@ -242,7 +243,7 @@ const server = http.createServer((req, res) => {
         .click();
       await newPage.getByText("Fresh account", { exact: true }).waitFor();
       await newPage
-        .getByRole("button", { name: "Continue setup", exact: true })
+        .getByRole("button", { name: "See all steps", exact: true })
         .click();
       await newPage.screenshot({
         path: path.join(artifacts, name + "-guided-setup.png"),

@@ -15,7 +15,8 @@ const set = async (p, pin = PIN) => { await p.locator("#pin-new").fill(pin); awa
   try {
     // New user: PIN and code come before the first record.
     const { p, errors } = await fresh();
-    await p.getByRole("button", { name: "Start a new ledger", exact: true }).click();
+    await p.getByRole("button", { name: "Start fresh", exact: true }).click();
+    await shot(p, "0-tour"); await p.locator("#tour-next").click(); await p.locator("#tour-back").click(); await p.locator("#tour-skip").click();
     await p.locator("#pin-new").fill("123456"); await p.locator("#pin-confirm").fill("123456"); await p.locator("#pin-next").click();
     await p.getByText("too easy to guess").waitFor();
     await p.locator("#pin-new").fill(PIN); await p.locator("#pin-confirm").fill("907265"); await p.locator("#pin-next").click();
@@ -29,8 +30,34 @@ const set = async (p, pin = PIN) => { await p.locator("#pin-new").fill(pin); awa
     await p.locator("#pin-got").check(); await p.locator("#pin-finish").click();
     await p.locator("#ob-name").fill("Main savings"); await p.locator("#ob-balance").fill("5000");
     await p.getByRole("button", { name: "Next: income & spending", exact: true }).click();
-    await p.locator("#ob-income").fill("100000");
+    await p.locator("#ob-income").fill("100000"); await p.locator("#ob-expense").fill("120000");
     await p.getByRole("button", { name: "Create my plan", exact: true }).click();
+    await p.getByText("Your forecast is ready").waitFor();
+    await p.getByText("your cash is lowest in").waitFor(); await shot(p, "5-forecast");
+    await p.locator("#want-loans").check(); await p.getByRole("button", { name: "Continue", exact: true }).click();
+    await p.getByText("Set up Family Money: 0 of 5 done").waitFor(); await shot(p, "6-home");
+    // Skip counts, adding an account does not reset progress, and a step ticks itself.
+    await p.getByRole("button", { name: "Skip", exact: true }).click();
+    await p.getByText("Set up Family Money: 1 of 5 done").waitFor();
+    await p.getByText("Add your regular income and bills").waitFor();
+    await p.getByRole("button", { name: "Start", exact: true }).click();
+    await p.getByText("This is your monthly plan").waitFor();
+    await p.getByRole("button", { name: "Got it", exact: true }).click();
+    await p.getByText("This is your monthly plan").waitFor({ state: "detached" });
+    await p.getByRole("tab", { name: "More", exact: true }).click(); await p.getByRole("heading", { name: "Safety and help" }).waitFor();
+    await p.screenshot({ path: "test-artifacts/lock-7-more.png", fullPage: true });
+    await p.getByRole("button", { name: "Accounts & backup", exact: true }).click();
+    await p.locator('[data-act="addacc"]').click();
+    await p.getByRole("tab", { name: "Home", exact: true }).click();
+    await p.getByText("Set up Family Money: 1 of 5 done").waitFor();
+    await p.getByRole("button", { name: "Hide", exact: true }).click();
+    await p.getByText("Set up Family Money").waitFor({ state: "detached" });
+    await p.getByRole("tab", { name: "More", exact: true }).click();
+    await p.getByRole("button", { name: "Take the tour", exact: true }).click();
+    assert.equal(await p.locator("#tour-step").textContent(), "1 of 6");
+    for (let i = 0; i < 6; i++) await p.locator("#tour-next").click();
+    await p.locator("#tour-root").waitFor({ state: "detached" });
+    await p.getByRole("tab", { name: "Home", exact: true }).click();
     await p.getByText("Main savings").first().waitFor();
     await p.evaluate(() => __cashbookLocal.flush());
     assert.doesNotMatch(await p.evaluate(() => localStorage.getItem("family-cashbook-data.json")), /Main savings/);
