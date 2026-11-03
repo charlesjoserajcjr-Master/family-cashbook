@@ -45,4 +45,4 @@ jobs:
           gh release create "desktop-${{ github.run_number }}" desktop/dist/*.exe \
             --target "${{ github.sha }}" --latest=false \
             --title "Windows desktop app 1.0.${{ github.run_number }}" \
-            --notes "Download Family-Cashbook-Setup-1.0.${{ github.run_number }}.exe to install (recommended), or the Portable .exe to run without installing. Works fully offline. Windows may say 'Windows protected your PC': click More info, then Run anyway."
+            --notes "Download Family-Money-Setup-1.0.${{ github.run_number }}.exe to install (recommended), or the Portable .exe to run without installing. Works fully offline. Windows may say 'Windows protected your PC': click More info, then Run anyway."

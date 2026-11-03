@@ -46,7 +46,7 @@
     return f.text();
   };
   const needIdentity = () => {
-    if (!identity) throw Error('Unlock your member key first.');
+    if (!identity) throw Error('Unlock your sharing key first.');
   };
   async function share(name, value) {
     const raw = JSON.stringify(value);
@@ -56,37 +56,37 @@
     const s = state(),
       v = vault();
     let out =
-      '<section class="section"><div class="section-head"><h2>Encrypted family file exchange</h2></div><div class="panel pad"><p>Exchange encrypted files using your device share sheet, WhatsApp, email or a saved attachment. Files are encrypted for one recipient and signed by the sender. Verify member fingerprints in person or through another trusted channel.</p><p>The owner is the authoritative ledger. Editors send proposed changes for owner review; viewers cannot submit changes. Only selected accounts are sent. Transfers crossing a private account boundary are omitted, so the shared view may not reconcile independently.</p><p>Removing a member stops future files and rejects their pending edits. It cannot erase data or old files already received. Keep backups and key passphrases separately.</p>';
+      '<section class="section"><div class="section-head"><h2>Share with family</h2></div><div class="panel pad"><p>Exchange encrypted files using your device share sheet, WhatsApp, email or a saved attachment. Files are encrypted for one recipient and signed by the sender. Verify member fingerprints in person or through another trusted channel.</p><p>The owner is the authoritative ledger. Editors send proposed changes for owner review; viewers cannot submit changes. Only selected accounts are sent. Transfers crossing a private account boundary are omitted, so the shared view may not reconcile independently.</p><p>Removing a member stops future files and rejects their pending edits. It cannot erase data or old files already received. Keep backups and key passphrases separately.</p>';
     if (!v)
       out +=
         '<div class="form">' +
         input('Your member name', 'fam-name') +
         input(
-          'Member-key passphrase (12+ characters)',
+          'Sharing passphrase (12+ characters)',
           'fam-password',
           'password'
         ) +
         input('Confirm passphrase', 'fam-confirm', 'password') +
         '</div>' +
-        button('identity-create', 'Create my member key');
+        button('identity-create', 'Create my sharing key');
     else {
       out +=
-        '<p>Your fingerprint: <code style="overflow-wrap:anywhere">' +
+        '<p>Your security code: <code style="overflow-wrap:anywhere">' +
         esc(v.public.id) +
         '</code></p>';
       if (!identity)
         out +=
-          input('Member-key passphrase', 'fam-password', 'password') +
-          button('identity-unlock', 'Unlock member key');
+          input('Sharing passphrase', 'fam-password', 'password') +
+          button('identity-unlock', 'Unlock sharing key');
       else
         out +=
           button('request', 'Share my invitation request') +
           ' ' +
-          button('identity-lock', 'Lock member key');
+          button('identity-lock', 'Lock sharing key');
     }
     if (identity && !s)
       out +=
-        '<hr>' + button('household-create', 'Create a family ledger as owner');
+        '<hr>' + button('household-create', 'Start sharing as the owner');
     if (s?.mode === 'owner') {
       out +=
         (s.reinviteRequired
@@ -116,7 +116,7 @@
         '<h3>Invite a member</h3>' +
         input('Their invitation-request file', 'fam-request-file', 'file') +
         input(
-          'Fingerprint verified through another channel',
+          'Security code checked with them directly',
           'fam-member-fingerprint'
         ) +
         '<label class="f">Role<select id="fam-role"><option value="viewer">Viewer</option><option value="editor">Editor</option></select></label><p>Select exactly the accounts to share:</p>' +
@@ -141,9 +141,9 @@
     }
     if (s?.mode === 'member')
       out +=
-        '<h3>Shared ledger · ' +
+        '<h3>Shared records · ' +
         esc(s.grant.body.role) +
-        '</h3><p>Owner fingerprint: <code style="overflow-wrap:anywhere">' +
+        '</h3><p>Owner security code: <code style="overflow-wrap:anywhere">' +
         esc(s.owner.id) +
         '</code></p>' +
         button('changes', 'Share my proposed changes');
@@ -153,7 +153,7 @@
         input('Encrypted family attachment', 'fam-import-file', 'file') +
         (s?.mode !== 'owner'
           ? input(
-              'Owner fingerprint (first pairing or owner recovery)',
+              'Owner security code (first pairing or owner recovery)',
               'fam-owner-fingerprint'
             )
           : '') +
@@ -200,7 +200,7 @@
             : '');
       else
         out +=
-          '<p>This replaces this device’s ledger with ' +
+          '<p>This replaces the records on this device with ' +
           Object.keys(pending.received.docs).length +
           ' shared records. A current recovery backup is offered first. Export any unsent changes before continuing.</p>';
       out +=
@@ -216,7 +216,7 @@
     if (a === 'identity-create') {
       if (!window.__cashbookLocal.encrypted)
         throw Error(
-          'Enable working-ledger encryption in Privacy first, then create your member key.'
+          'Create your sharing key first.'
         );
       const p = $('#fam-password').value;
       if (p !== $('#fam-confirm').value)
@@ -255,10 +255,10 @@
     if (a === 'household-create') {
       if (window.__cashbookLocal.drive.connected)
         throw Error(
-          'Disconnect personal Drive sync before creating a file-based family ledger.'
+          'Disconnect Google Drive before sharing with family.'
         );
       if (!window.__cashbookLocal.encrypted)
-        throw Error('Enable working-ledger encryption first.');
+        throw Error('Set up your PIN first.');
       await A.db().doc('family/main').set(F.ownerState(identity));
       return;
     }
@@ -385,11 +385,11 @@
       } else {
         if (!window.__cashbookLocal.encrypted)
           throw Error(
-            'Enable working-ledger encryption before accepting shared records.'
+            'Set up your PIN before accepting shared records.'
           );
         if (
           !confirm(
-            'Replace this device’s ledger with the reviewed shared copy? Save the recovery backup and any unsent proposals first.'
+            'Replace the records on this device with this shared copy? Save the recovery backup and any unsent proposals first.'
           )
         )
           return;

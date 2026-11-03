@@ -4,7 +4,7 @@ Use a preview installation or backed-up copy for initial tests. Enable working-l
 
 ## Pair and send
 
-1. Start the owner's ledger, enable working-ledger encryption in Privacy, then open More → Encrypted family file sync. Create the owner's member key with a separate passphrase. Disconnect personal Drive sync, then create the family ledger as owner.
+1. Start the owner's ledger, enable working-ledger encryption in Privacy, then open More → Share with family. Create the owner's member key with a separate passphrase. Disconnect personal Drive sync, then create the family ledger as owner.
 2. Each recipient starts their own preview ledger, enables working-ledger encryption, creates their own member key and chooses Share my invitation request. Send that public-key request using WhatsApp/email or save/attach the JSON file. This request contains public keys and a name, not private keys or balances.
 3. The owner verifies the recipient's complete fingerprint through an independent trusted channel, opens their request file, chooses viewer or editor and selects exactly the accounts to share. Foreign accounts are identified by currency. Do not assume the name in an attachment proves who sent it.
 4. Share latest file produces an encrypted, signed attachment for that member only. On Android/iOS the share sheet lets the user select WhatsApp, email or another installed app. Windows saves an attachment for sending manually. No messaging account is accessed by the application.

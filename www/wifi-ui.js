@@ -25,7 +25,7 @@
     const url = new URL(CashbookWifiCrypto.endpoint(base));
     if (!native() || !window.CashbookLocalTransport)
       throw Error(
-        "Install the Android or iPhone app to connect locally. Browser previews do not support native Wi-Fi transport.",
+        "Install the Android or iPhone app to connect locally. Wi-Fi sync does not work in a web browser.",
       );
     const response = await window.CashbookLocalTransport.request({
       host: url.hostname,
@@ -69,7 +69,7 @@
     if (A?.state().family?.main)
       return (
         out +
-        "<p>This family ledger uses signed family-file exchange. Personal device pairing is unavailable.</p>"
+        "<p>These are shared family records, so they use family file sharing. Device pairing is not available for them.</p>"
       );
     if (L.drive?.connected)
       return (
@@ -79,7 +79,7 @@
     if (!window.cashbookDesktop?.wifiStart && !native())
       return (
         out +
-        "<p>Use the installed Windows app on your laptop and the installed app on your phone. This browser preview cannot connect to local devices.</p>"
+        "<p>Use the installed Windows app on your laptop and the installed app on your phone. A web browser cannot connect to your other devices.</p>"
       );
     if (!L.encrypted || L.locked)
       return (
@@ -91,7 +91,7 @@
       );
     if (window.cashbookDesktop?.wifiStart) {
       out +=
-        "<p>Paired phones receive full access to this personal ledger. Pair only devices you control.</p>";
+        "<p>Paired phones get full access to these records. Pair only devices you control.</p>";
       out +=
         button("show", "Connect phone · show QR", actionBusy || !!s.pending) +
         button(
@@ -214,7 +214,7 @@
         if (pass.length < 12) throw Error("Use at least 12 characters.");
         await window.__cashbookLocal.encryptLedger(pass);
         await c.refresh();
-        A.toast("This device is encrypted. Keep its passphrase safe.");
+        A.toast("This device is protected.");
       }
       if (action === "show") await c.showQR();
       if (action === "listen") {
@@ -236,7 +236,7 @@
       }
       if (action === "confirm") {
         await c.confirmPhone();
-        A.toast("Paired. Tap Sync now to copy your ledger from the laptop.");
+        A.toast("Paired. Tap Sync now to copy your records from the laptop.");
       }
       if (action === "sync") {
         await c.sync(t.dataset.id);

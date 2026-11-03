@@ -34,7 +34,7 @@
     const emit = () => onChange();
     function guard() {
       if (store.locked || !store.encrypted)
-        throw Error("Set a device passphrase and unlock before pairing.");
+        throw Error("Set a PIN and unlock before pairing.");
       if (store.drive?.connected)
         throw Error("Disconnect Google Drive before using local Wi-Fi sync.");
       if (store.saveError || store.readError)
@@ -52,7 +52,7 @@
             Object.keys(vault.peers).length > 8)
         )
           throw Error(
-            "Paired-device settings are damaged. Restore your ledger and pair again.",
+            "Paired-device settings are damaged. Restore your backup and pair again.",
           );
         loaded = true;
       }
@@ -99,7 +99,7 @@
       await load();
       const snap = await personal();
       if (!snap.docs["settings/main"])
-        throw Error("Set up or restore the laptop ledger first.");
+        throw Error("Set up or restore your records on the laptop first.");
       if (!hostTransport)
         throw Error("Open the installed Windows app to connect your phone.");
       if (vault && vault.role !== "host")
@@ -248,7 +248,7 @@
             emit();
           } else {
             if (payload.op !== "sync" || payload.ledgerId !== vault.ledgerId)
-              throw Error("This is a different ledger. Pair again.");
+              throw Error("These are different records. Pair again.");
             // Serialize mutations; re-check revocation after waiting behind another request.
             const job = mutation
               .catch(() => {})
@@ -331,7 +331,7 @@
           throw Error("Use this device to show the QR code.");
         if (snap.docs["settings/main"] && !vault?.ledgerId)
           throw Error(
-            "This phone already has a separate ledger. Back it up and use an empty app copy before pairing.",
+            "This phone already has its own records. Back them up and start with an empty app before pairing.",
           );
         const q = C.parseQR(text, now()),
           prepared = await prepare(q.secret, q.id, q.endpoint, {
@@ -361,7 +361,7 @@
         C.bytes(result.record.secret, 32);
         if (vault?.ledgerId && vault.ledgerId !== result.ledgerId)
           throw Error(
-            "This is another laptop ledger. Your current ledger was kept.",
+            "These records belong to another laptop. Your records were kept.",
           );
         candidate = {
           ...candidate,
@@ -432,7 +432,7 @@
           if (current !== epoch || !vault?.peers[id])
             throw Error("Sync cancelled.");
           if (result.op !== "synced" || result.ledgerId !== vault.ledgerId)
-            throw Error("The laptop returned another ledger.");
+            throw Error("The laptop sent different records.");
           const merged = await store.mergePeer(result.snapshot);
           await store.flush();
           if (merged.localNewer) continue;

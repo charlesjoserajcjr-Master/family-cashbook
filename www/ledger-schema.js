@@ -15,7 +15,7 @@ function date(value){if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(val
 function validate(o,{legacy=false}={}){
  safe(o);if(!object(o))throw Error('Invalid ledger.');
  if(legacy&&!o.app&&!o.docs)o={app:'family-cashbook',version:2,docs:o};
- if(o.app!=='family-cashbook'||(o.version!=null&&![1,2].includes(o.version))||!object(o.docs))throw Error('Unsupported Family Cashbook ledger.');
+ if(o.app!=='family-cashbook'||(o.version!=null&&![1,2].includes(o.version))||!object(o.docs))throw Error('This file is not a Family Money backup.');
  if(Object.keys(o.docs).length>50000)throw Error('Too many ledger records.');
  for(const [p,d] of Object.entries(o.docs)){
   path(p);if(!object(d))throw Error('Record must be an object.');

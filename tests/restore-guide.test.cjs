@@ -101,7 +101,7 @@ test("unrecognized, incomplete and unsafe backup files leave the working ledger 
     await assert.rejects(h.api.inspectBackup(raw));
   await assert.rejects(
     h.api.inspectBackup(JSON.stringify({ app: "family-cashbook", docs: {} })),
-    /complete ledger/,
+    /complete backup/,
   );
   assert.equal(h.disk.get("family-cashbook-data.json"), original);
   assert.equal(h.writes.length, 0);
