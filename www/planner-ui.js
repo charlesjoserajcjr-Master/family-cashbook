@@ -180,7 +180,7 @@ function conflicts(){
  (list.length?list.map(([key,c],i)=>'<details class="panel pad"><summary>'+esc(c.path)+' · '+esc(c.field)+'</summary><pre style="white-space:pre-wrap">'+esc(JSON.stringify({local:c.local,remote:c.remote},null,2))+'</pre>'+btn('conflict-dismiss','Reviewed','data-key="'+esc(key)+'"')+'</details>').join(''):'<p>No conflicting field history recorded.</p>'));
 }
 function plans(){
- return panel('Plans and family access','<p><b>Preview release — all current tools are available.</b> No payment will be collected in this build.</p>'+rowsTable(['Proposed plan','Price','Planned package'],[['Free','₹0','Manual tracking, monthly review, backups and exports'],['Family Money by RT Plus','₹999/year or ₹129/month','Extended planning, scenarios, imports, business and net-worth tools']])+
+ return panel('Plans and family access','<p><b>Preview release — all current tools are available.</b> No payment will be collected in this build.</p>'+rowsTable(['Proposed plan','Price','Planned package'],[['Free','₹0','Manual tracking, monthly review, backups and exports'],['Family Money by RT Plus','₹799/year','Extended planning, scenarios, imports, business and net-worth tools']])+
  '<p>Share with family uses separate member keys, signed grants and recipient-scoped files. The owner reviews editor proposals; viewers cannot submit changes. Current personal Drive sync is separate and still uses the same Google account. Do not share your Google password.</p><p>Existing records and exports remain available. Purchase and restore adapters with server verification are available in Purchases & restore. Merchant/store accounts and real sandbox validation are still required before activation.</p>');
 }
 function more(){
